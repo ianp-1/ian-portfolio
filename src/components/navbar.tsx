@@ -20,7 +20,7 @@ export function Navbar() {
 
     return (
         <>
-            <header className="fixed top-0 w-full p-4 md:p-6 flex justify-between items-center z-50 transition-all bg-background/80 backdrop-blur-md border-b border-muted/20">
+            <header className="fixed top-0 w-full p-4 md:p-6 flex justify-between items-center z-50 transition-all bg-background/20 backdrop-blur-md border-b border-white/5 [mask-image:linear-gradient(to_bottom,black_80%,transparent)]">
                 <div className="font-bold text-xl tracking-tighter">IP</div>
 
                 {/* Desktop Nav */}
@@ -61,27 +61,27 @@ export function Navbar() {
                 </div>
             </header>
 
-            {/* Mobile Nav Overlay */}
-            <div className={`fixed inset-0 z-40 bg-background/95 backdrop-blur-xl md:hidden transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                <nav className="flex flex-col items-center justify-center h-full gap-8 px-6">
+            {/* Mobile Nav Dropdown */}
+            <div className={`fixed top-[73px] left-0 right-0 z-40 bg-background/20 backdrop-blur-md border-b border-white/5 md:hidden transition-all duration-300 ease-in-out origin-top [mask-image:linear-gradient(to_bottom,black_90%,transparent)] ${isOpen ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0'}`}>
+                <nav className="flex flex-col p-4 gap-2">
                     <Link
                         href="#projects"
                         onClick={(e) => handleScroll(e, "#projects")}
-                        className="text-2xl font-bold hover:text-primary transition-colors"
+                        className="text-lg font-medium hover:text-primary transition-colors p-2 rounded-md hover:bg-white/5"
                     >
                         Projects
                     </Link>
                     <Link
                         href="#experience"
                         onClick={(e) => handleScroll(e, "#experience")}
-                        className="text-2xl font-bold hover:text-primary transition-colors"
+                        className="text-lg font-medium hover:text-primary transition-colors p-2 rounded-md hover:bg-white/5"
                     >
                         Experience
                     </Link>
                     <Link
                         href="#contact"
                         onClick={(e) => handleScroll(e, "#contact")}
-                        className="text-2xl font-bold hover:text-primary transition-colors"
+                        className="text-lg font-medium hover:text-primary transition-colors p-2 rounded-md hover:bg-white/5"
                     >
                         Contact
                     </Link>
