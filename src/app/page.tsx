@@ -3,11 +3,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ArrowRight, Github, Mail, Linkedin, Briefcase } from "lucide-react"
-import { ModeToggle } from "@/components/mode-toggle"
+import { Navbar } from "@/components/navbar"
 import { EXPERIENCE, PROJECTS, LINKS } from "@/lib/data"
 import { HeroSection } from "@/components/hero-section"
 import { SkillsMarquee } from "@/components/skills-marquee"
-
 import { ScrollAnimations } from "@/components/scroll-animations"
 import { InteractiveBackground } from "@/components/interactive-background"
 
@@ -18,15 +17,7 @@ export default function Home() {
       <InteractiveBackground />
 
       {/* Navigation / Header */}
-      <header className="absolute top-0 w-full p-6 flex justify-between items-center z-50 max-w-6xl left-1/2 -translate-x-1/2">
-        <div className="font-bold text-xl tracking-tighter">IP</div>
-        <nav className="flex items-center gap-4">
-          <Link href="#projects" className="text-sm font-medium hover:text-primary transition-colors">Projects</Link>
-          <Link href="#experience" className="text-sm font-medium hover:text-primary transition-colors">Experience</Link>
-          <Link href="#contact" className="text-sm font-medium hover:text-primary transition-colors">Contact</Link>
-          <ModeToggle />
-        </nav>
-      </header>
+      <Navbar />
 
       {/* Background Elements - Stronger Gradients */}
       <div className="absolute inset-0 w-full h-full bg-background -z-20" />

@@ -5,14 +5,16 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ArrowRight, Github, Mail, Linkedin, Download } from "lucide-react"
 import { HERO, LINKS } from "@/lib/data"
-import { useRef } from "react"
+import React, { useRef } from "react"
 import gsap from "gsap"
 import { useGSAP } from "@gsap/react"
+import { useLenis } from "lenis/react"
 
 gsap.registerPlugin(useGSAP)
 
 export function HeroSection() {
     const containerRef = useRef<HTMLElement>(null)
+    const lenis = useLenis()
 
     useGSAP(() => {
         // Animate hero elements
@@ -24,6 +26,11 @@ export function HeroSection() {
             ease: "power3.out"
         })
     }, { scope: containerRef })
+
+    const handleScroll = (e: React.MouseEvent) => {
+        e.preventDefault()
+        lenis?.scrollTo("#projects")
+    }
 
     return (
         <section ref={containerRef} className="flex-1 flex flex-col justify-center items-start px-6 max-w-6xl mx-auto w-full pt-32 pb-20">
@@ -40,10 +47,8 @@ export function HeroSection() {
                     {HERO.description}
                 </p>
                 <div className="hero-animate flex flex-wrap gap-4">
-                    <Button size="lg" className="group shadow-lg shadow-primary/20" asChild>
-                        <Link href="#projects">
-                            View Work <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                        </Link>
+                    <Button size="lg" className="group shadow-lg shadow-primary/20" onClick={handleScroll}>
+                        View Work <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
                     </Button>
                     <Button size="lg" variant="outline" className="group hover:bg-primary/5" asChild>
                         <Link href={LINKS.resume} target="_blank">
