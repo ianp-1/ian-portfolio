@@ -53,14 +53,14 @@ export default function Home() {
               </div>
 
               {/* Content Card */}
-              <Card className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-6 bg-card/40 backdrop-blur-md hover:bg-card/60 transition-all duration-300 border-muted/50 hover:border-primary/20 group-hover:shadow-lg group-hover:shadow-primary/5">
+              <Card className="ml-4 md:ml-0 w-[calc(100%-3rem)] md:w-[calc(50%-2.5rem)] p-4 md:p-6 bg-card/40 backdrop-blur-md hover:bg-card/60 transition-all duration-300 border-muted/50 hover:border-primary/20 group-hover:shadow-lg group-hover:shadow-primary/5">
                 <CardHeader className="p-0 mb-4">
                   <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2">
                     <div>
-                      <CardTitle className="text-xl font-bold">{job.role}</CardTitle>
+                      <CardTitle className="text-lg md:text-xl font-bold">{job.role}</CardTitle>
                       <CardDescription className="text-primary font-medium text-base mt-1">{job.company}</CardDescription>
                     </div>
-                    <Badge variant="outline" className="w-fit whitespace-nowrap bg-secondary/50">{job.period}</Badge>
+                    <Badge variant="outline" className="w-fit whitespace-nowrap bg-secondary/50 text-xs md:text-sm">{job.period}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0 text-sm text-muted-foreground">
@@ -141,13 +141,18 @@ export default function Home() {
         </Button>
       </section>
 
-      <footer className="py-8 text-center text-sm text-muted-foreground border-t border-muted/20 bg-background/50 backdrop-blur-sm">
-        <div className="flex justify-center gap-6 mb-4">
-          <Link href={LINKS.github} target="_blank" className="hover:text-primary transition-colors"><Github className="h-5 w-5" /></Link>
-          <Link href={LINKS.linkedin} target="_blank" className="hover:text-primary transition-colors"><Linkedin className="h-5 w-5" /></Link>
-          <Link href={LINKS.email} className="hover:text-primary transition-colors"><Mail className="h-5 w-5" /></Link>
+      <footer className="relative py-12 px-6 text-center text-sm text-muted-foreground border-t border-muted/20 bg-background overflow-hidden">
+        {/* Footer Background Effect */}
+        <div className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent -z-10" />
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-center gap-6 mb-8">
+            <Link href={LINKS.github} target="_blank" className="p-2 hover:text-primary hover:bg-primary/10 rounded-full transition-all duration-300"><Github className="h-5 w-5" /></Link>
+            <Link href={LINKS.linkedin} target="_blank" className="p-2 hover:text-primary hover:bg-primary/10 rounded-full transition-all duration-300"><Linkedin className="h-5 w-5" /></Link>
+            <Link href={LINKS.email} className="p-2 hover:text-primary hover:bg-primary/10 rounded-full transition-all duration-300"><Mail className="h-5 w-5" /></Link>
+          </div>
+          <p className="font-medium tracking-wide italic">Designed & Built by Ian Pang</p>
+          <p className="mt-2 text-xs opacity-50">© {new Date().getFullYear()} Ian Pang. All rights reserved.</p>
         </div>
-        <p>© {new Date().getFullYear()} Ian Pang. All rights reserved.</p>
       </footer>
     </div>
   )

@@ -33,17 +33,17 @@ export function HeroSection() {
     }
 
     return (
-        <section ref={containerRef} className="flex-1 flex flex-col justify-center items-start px-6 max-w-6xl mx-auto w-full pt-32 pb-20">
+        <section ref={containerRef} className="flex-1 flex flex-col justify-center items-start px-6 max-w-6xl mx-auto w-full pt-40 pb-20 md:pt-32">
             <div className="space-y-4 max-w-3xl">
                 <div className="hero-animate">
                     <Badge variant="outline" className="mb-4 backdrop-blur-sm border-primary/20 text-primary">
                         {HERO.role}
                     </Badge>
                 </div>
-                <h1 className="hero-animate text-5xl md:text-7xl font-extrabold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-foreground via-primary to-foreground pb-2">
+                <h1 className="hero-animate text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-foreground via-primary to-foreground pb-2 leading-tight">
                     {HERO.title}
                 </h1>
-                <p className="hero-animate text-xl text-muted-foreground leading-relaxed max-w-2xl mb-8">
+                <p className="hero-animate text-lg sm:text-xl text-muted-foreground leading-relaxed max-w-2xl mb-8">
                     {HERO.description}
                 </p>
                 <div className="hero-animate flex flex-wrap gap-4">
