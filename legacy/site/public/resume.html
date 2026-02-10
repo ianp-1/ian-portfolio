@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ian Pang | Digital Resume</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#833cf6", // Theme primary
+                        "accent-blue": "#3b82f6", // User requested Electric Blue for CTA
+                        "background-light": "#f7f5f8",
+                        "background-dark": "#171022",
+                        "border-muted": "#e4e4e7",
+                        "text-muted": "#71717a"
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        @media print {
+            .no-print { display: none !important; }
+            body { background-color: white !important; }
+            .resume-container { box-shadow: none !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; }
+        }
+        body {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen pb-20">
+<!-- Sticky Header -->
+<header class="sticky top-0 z-50 w-full border-b border-border-muted bg-white/80 dark:bg-background-dark/80 backdrop-blur-md no-print">
+<div class="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
+<h1 class="text-xl font-bold tracking-tight">Resume</h1>
+<button class="bg-accent-blue hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm">
+<span class="material-icons text-[20px]">file_download</span>
+                Download PDF
+            </button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="max-w-4xl mx-auto px-6 mt-8 sm:mt-12">
+<div class="bg-white dark:bg-slate-900 shadow-sm border border-border-muted rounded-xl p-8 sm:p-12 resume-container">
+<!-- Personal Info -->
+<section class="text-center mb-10">
+<h2 class="text-4xl font-extrabold tracking-tight mb-4">Ian Pang</h2>
+<div class="flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-text-muted dark:text-slate-400 text-sm">
+<a class="flex items-center gap-1.5 hover:text-primary transition-colors" href="mailto:ian.pang@example.com">
+<span class="material-icons text-[18px]">email</span>
+                        ian.pang@example.com
+                    </a>
+<div class="flex items-center gap-1.5">
+<span class="material-icons text-[18px]">phone</span>
+                        (555) 123-4567
+                    </div>
+<a class="flex items-center gap-1.5 hover:text-primary transition-colors" href="#">
+<span class="material-icons text-[18px]">link</span>
+                        linkedin.com/in/ianpang
+                    </a>
+<a class="flex items-center gap-1.5 hover:text-primary transition-colors" href="#">
+<span class="material-icons text-[18px]">code</span>
+                        github.com/ianpang
+                    </a>
+</div>
+</section>
+<!-- Education -->
+<section class="mb-10">
+<h3 class="text-xs font-bold uppercase tracking-widest text-primary mb-4 border-b border-border-muted pb-2">Education</h3>
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-baseline mb-1">
+<h4 class="font-bold text-lg">University of California, Berkeley</h4>
+<span class="text-sm text-text-muted font-medium">Aug 2021 — May 2025</span>
+</div>
+<div class="flex justify-between items-baseline">
+<p class="text-slate-700 dark:text-slate-300">B.S. in Computer Science</p>
+<p class="text-sm font-semibold italic">GPA: 3.9 / 4.0</p>
+</div>
+</section>
+<!-- Experience -->
+<section class="mb-10">
+<h3 class="text-xs font-bold uppercase tracking-widest text-primary mb-4 border-b border-border-muted pb-2">Experience</h3>
+<!-- Entry 1 -->
+<div class="mb-8">
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-baseline mb-1">
+<h4 class="font-bold text-lg">Software Engineering Intern</h4>
+<span class="text-sm text-text-muted font-medium">May 2024 — Aug 2024</span>
+</div>
+<div class="flex justify-between items-baseline mb-3">
+<p class="text-slate-600 dark:text-slate-400 font-medium italic">Stripe</p>
+<p class="text-xs text-text-muted">San Francisco, CA</p>
+</div>
+<ul class="list-disc list-outside ml-5 space-y-2 text-slate-800 dark:text-slate-200 leading-relaxed">
+<li>Optimized backend payment processing pipelines using Go, reducing transaction latency by 15% across core APIs.</li>
+<li>Developed and deployed a microservice for automated tax reconciliation, handling over $2M in daily volume.</li>
+<li>Collaborated with cross-functional teams to implement 2FA enhancements, improving security for 50k+ merchant accounts.</li>
+<li>Wrote comprehensive unit and integration tests, increasing code coverage from 78% to 92% in the billing module.</li>
+</ul>
+</div>
+<!-- Entry 2 -->
+<div class="mb-6">
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-baseline mb-1">
+<h4 class="font-bold text-lg">Research Assistant</h4>
+<span class="text-sm text-text-muted font-medium">Jan 2023 — May 2024</span>
+</div>
+<div class="flex justify-between items-baseline mb-3">
+<p class="text-slate-600 dark:text-slate-400 font-medium italic">Berkeley AI Research (BAIR)</p>
+<p class="text-xs text-text-muted">Berkeley, CA</p>
+</div>
+<ul class="list-disc list-outside ml-5 space-y-2 text-slate-800 dark:text-slate-200 leading-relaxed">
+<li>Assisted in training Large Language Models (LLMs) on specialized technical datasets using PyTorch and CUDA.</li>
+<li>Designed data preprocessing scripts in Python that cleaned and tokenized 500GB+ of raw textual data.</li>
+<li>Implemented a visualization dashboard using React and D3.js to monitor model loss and gradient flow in real-time.</li>
+</ul>
+</div>
+</section>
+<!-- Projects -->
+<section class="mb-10">
+<h3 class="text-xs font-bold uppercase tracking-widest text-primary mb-4 border-b border-border-muted pb-2">Projects</h3>
+<div class="grid grid-cols-1 gap-6">
+<div>
+<div class="flex justify-between items-baseline mb-1">
+<h4 class="font-bold text-md">C-Based Compiler</h4>
+<span class="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">C, Flex, Bison, LLVM</span>
+</div>
+<p class="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
+                            Built a full-featured compiler for a subset of the C language. Implemented lexical analysis, abstract syntax tree (AST) construction, and semantic analysis. Generated optimized LLVM IR for target machine execution.
+                        </p>
+</div>
+<div>
+<div class="flex justify-between items-baseline mb-1">
+<h4 class="font-bold text-md">Distributed Key-Value Store</h4>
+<span class="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">Go, gRPC, Raft</span>
+</div>
+<p class="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
+                            Designed a fault-tolerant distributed system using the Raft consensus algorithm. Achieved linearizability and high availability during node failures. Optimized read performance with client-side caching and lease mechanisms.
+                        </p>
+</div>
+</div>
+</section>
+<!-- Skills -->
+<section>
+<h3 class="text-xs font-bold uppercase tracking-widest text-primary mb-4 border-b border-border-muted pb-2">Skills</h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div>
+<h5 class="text-xs font-bold text-slate-500 uppercase mb-2">Languages</h5>
+<div class="flex flex-wrap gap-2">
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Python</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Java</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">C++</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">TypeScript</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Go</span>
+</div>
+</div>
+<div>
+<h5 class="text-xs font-bold text-slate-500 uppercase mb-2">Frameworks / Libs</h5>
+<div class="flex flex-wrap gap-2">
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">React</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Node.js</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">PyTorch</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Express</span>
+</div>
+</div>
+<div>
+<h5 class="text-xs font-bold text-slate-500 uppercase mb-2">Tools / Infrastructure</h5>
+<div class="flex flex-wrap gap-2">
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Docker</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Kubernetes</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">AWS</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Git</span>
+<span class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">PostgreSQL</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Footer -->
+<footer class="mt-12 text-center text-text-muted text-sm no-print">
+<p>© 2024 Ian Pang • Generated from Digital Portfolio</p>
+<div class="mt-2 flex justify-center gap-4">
+<a class="hover:text-primary underline decoration-border-muted underline-offset-4" href="#">Privacy Policy</a>
+<a class="hover:text-primary underline decoration-border-muted underline-offset-4" href="#">Contact</a>
+</div>
+</footer>
+</body></html>
