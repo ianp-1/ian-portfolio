@@ -1,0 +1,36 @@
+name: Compile LaTeX and Deploy to Portfolio
+
+on:
+  push:
+    branches:
+      - main  # or 'master' depending on your Overleaf sync branch
+
+jobs:
+  build_latex:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Git repository
+        uses: actions/checkout@v4
+
+      - name: Compile LaTeX document
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex  # Change this if your main file is named differently (e.g., resume.tex)
+          # If your Overleaf project uses XeLaTeX or LuaLaTeX, uncomment the next line:
+          # compiler: xelatex 
+
+      - name: Rename PDF
+        run: mv main.pdf IanPang_Resume.pdf # Matches the name in your src/lib/data.ts
+
+      - name: Pushes to Portfolio Repo
+        uses: cpina/github-action-push-to-another-repository@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.PORTFOLIO_TOKEN }}
+        with:
+          source-directory: '.'
+          destination-github-username: 'ianp-1' # Your GitHub username
+          destination-repository-name: 'ian-portfolio' # Your portfolio repo name
+          user-email: ipang@purdue.edu # Your email
+          target-branch: main
+          target-directory: 'public' # Where the PDF should go
+          id_subset: 'IanPang_Resume.pdf' # Only push this file

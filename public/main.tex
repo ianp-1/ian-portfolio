@@ -1,0 +1,263 @@
+%-------------------------
+% Resume in Latex
+% Author : Jake Gutierrez
+% Based off of: https://github.com/sb2nov/resume
+% License : MIT
+%------------------------
+
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\input{glyphtounicode}
+
+
+%----------FONT OPTIONS----------
+% sans-serif
+% \usepackage[sfdefault]{FiraSans}
+% \usepackage[sfdefault]{roboto}
+% \usepackage[sfdefault]{noto-sans}
+% \usepackage[default]{sourcesanspro}
+
+% serif
+% \usepackage{CormorantGaramond}
+% \usepackage{charter}
+
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+% THIS ONE DECREASES SPACING BETWEEN THE SECTION WITH UR NAME AND THE FIRST SECTION
+  \vspace{-10pt}\scshape\raggedright\large
+% THIS ONE DECREASES SPACE BETWEEN THE COMPANY NAME AND THE SECTION LINE
+}{}{0em}{}[\color{black}\titlerule \vspace{-8pt}]
+
+% Ensure that generate pdf is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubSubheading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textit{\small#1} & \textit{\small #2} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+
+%----------HEADING----------
+% \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+%   \textbf{\href{http://sourabhbajaj.com/}{\Large Sourabh Bajaj}} & Email : \href{mailto:sourabh@sourabhbajaj.com}{sourabh@sourabhbajaj.com}\\
+%   \href{http://sourabhbajaj.com/}{http://www.sourabhbajaj.com} & Mobile : +1-123-456-7890 \\
+% \end{tabular*}
+
+\begin{center}
+    \textbf{\Huge \scshape Ian Pang} \\ \vspace{1pt}
+    \small Reading, MA $|$ \small 617-803-5651 $|$ \href{mailto:ianpang126@gmail.com}{\underline{ianpang126@gmail.com}} $|$ 
+    \href{https://linkedin.com/in/pang-ian}{\underline{linkedin.com/in/pang-ian}} $|$
+    \href{https://github.com/ianp-1}{\underline{github.com/ianp-1}}
+\end{center}
+
+
+%-----------EDUCATION-----------
+\section{Education}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {Purdue University}{West Lafayette, IN}
+      {Bachelor of Science in Computer Science, Bachelor of Science in Mathematics}{Expected May 2027}
+    \resumeItemListStart
+      \resumeItem{Relevant Coursework: Object Oriented Programming (Java), Discrete Math, Programming in C, Computer Architecture, Data Structures and Algorithms}
+    \resumeItemListEnd
+  \resumeSubHeadingListEnd
+
+
+%-----------EXPERIENCE-----------
+\section{Experience}
+  \resumeSubHeadingListStart
+
+    \resumeSubheading
+      {Undergraduate Data Science Researcher}{Aug. 2025 -- Present}
+      {FedEx - The Data Mine at Purdue}{West Lafayette, IN}
+      \resumeItemListStart
+    \resumeItem{Developed a Python-based simulation engine to model and optimize the minute-by-minute routing logic for 180,000+ daily packages within the FedEx Indianapolis hub, managing volume from 64 flights and 195 trucks.}
+    \resumeItem{Implemented data pipelines to aggregate and clean 200,000+ raw records, transforming inconsistent inbound data into precise time-series inputs for stress-testing warehouse capacity and identifying system bottlenecks.}
+  \resumeItemListEnd
+      
+% -----------Multiple Positions Heading-----------
+%    \resumeSubSubheading
+%     {Software Engineer I}{Oct 2014 - Sep 2016}
+%     \resumeItemListStart
+%        \resumeItem{Apache Beam}
+%          {Apache Beam is a unified model for defining both batch and streaming data-parallel processing pipelines}
+%     \resumeItemListEnd
+%    \resumeSubHeadingListEnd
+%-------------------------------------------
+
+    \resumeSubheading
+      {Research Assistant}{May 2025 -- Present}
+      {Zhan Lab, Purdue University}{West Lafayette, IN}
+    \resumeItemListStart
+    \resumeItem{Engineered a real-time embryo detection pipeline using OpenCV and PyTorch to process 120 FPS high-resolution microfluidic video, achieving 20 ms end-to-end latency from detection to inference.}
+    \resumeItem{Trained a ResNet-based CNN to classify embryo developmental stages with 80\% accuracy based on 1,000+ embryo samples, and integrated Arduino control to direct viable embryos to separate channels for experimentation.}
+  \resumeItemListEnd
+
+
+
+    \resumeSubheading
+  {Software Engineer Intern}{June 2025 -- Aug. 2025}
+  {Suga International Holdings Limited}{Hong Kong SAR}
+  \resumeItemListStart
+    \resumeItem{Developed core digital signal processing features in C for an audio mixer, reducing CPU utilization by 40\%.}
+    \resumeItem{Minimized system storage footprint by 70\% with compression techniques, achieving sub-2MB deployment.}
+    \resumeItem{Designed and launched a dual-core MicroPython architecture with a custom WebSocket-based control server, enabling real-time audio command execution and decreasing operational latency from 120ms to 13ms.}
+    \resumeItem{Implemented automated CI/CD build and test pipelines via GitHub Actions and shell scripts, accelerating development iterations by ensuring consistent, reliable deployment across the product lifecycle.}
+  \resumeItemListEnd
+  
+  \resumeSubheading
+  {Software Engineer Intern}{June 2024 -- Aug. 2024}
+  {Suga International Holdings Limited}{Hong Kong SAR}
+  \resumeItemListStart
+    \resumeItem{Deployed real-time pet detection and robot navigation models on NVIDIA Jetson devices using YOLO and custom CNNs, achieving 99\%+ accuracy with low-latency embedded inference.}
+    \resumeItem{Scaled an image preprocessing pipeline for 80K+ images in Python, doubling training throughput and significantly lowering GPU/cloud compute costs.}
+  \resumeItemListEnd
+    
+
+
+
+  \resumeSubHeadingListEnd
+
+
+%-----------PROJECTS-----------
+\section{Projects}
+    \resumeSubHeadingListStart
+      % \resumeProjectHeading
+      %     {\textbf{Gitlytics} $|$ \emph{Python, Flask, React, PostgreSQL, Docker}}{June 2020 -- Present}
+      %     \resumeItemListStart
+      %       \resumeItem{Developed a full-stack web application using with Flask serving a REST API with React as the frontend}
+      %       \resumeItem{Implemented GitHub OAuth to get data from user’s repositories}
+      %       \resumeItem{Visualized GitHub data to show collaboration}
+      %       \resumeItem{Used Celery and Redis for asynchronous tasks}
+      %     \resumeItemListEnd
+      % \resumeProjectHeading
+      %     {\textbf{Simple Paintball} $|$ \emph{Spigot API, Java, Maven, TravisCI, Git}}{May 2018 -- May 2020}
+      %     \resumeItemListStart
+      %       \resumeItem{Developed a Minecraft server plugin to entertain kids during free time for a previous job}
+      %       \resumeItem{Published plugin to websites gaining 2K+ downloads and an average 4.5/5-star review}
+      %       \resumeItem{Implemented continuous delivery using TravisCI to build the plugin upon new a release}
+      %       \resumeItem{Collaborated with Minecraft server administrators to suggest features and get feedback about the plugin}
+      %     \resumeItemListEnd
+      \resumeProjectHeading
+          {\textbf{Obsurafy} $|$ HackUMass First Place (\emph{Swift, Python, Gemini AI})}{}
+              \resumeItemListStart
+                \resumeItem{1st Place out of 176 teams at HackUMass XIII (UMass Amherst) for developing Obsurafy.}
+                \resumeItem{Integrated CoreML and a custom YOLOv11 model trained with PyTorch on 8+ open-source datasets, enabling real-time on-device detection and redaction of sensitive data in user photos.}
+                \resumeItem{Built and connected backend services in Swift, leveraged Gemini API for context analysis, and implemented secure data workflows using RESTful APIs and Apple Photos API, ensuring 100\% local processing without cloud risk.}
+              \resumeItemListEnd
+          % {\textbf{Bookshelf Scanner} $|$ \emph{React, Python, Flask, Next.js}}{}
+          % \resumeItemListStart
+          %   \resumeItem{Built a full-stack application enabling users to upload bookshelf images and extract multiple book titless using OCR and a React-based UI}
+          %   \resumeItem{Used an OpenAI LLM to refine hard-to-read OCR output and retrieved book metadata including title, author, summary, reviews, and ratings from external APIs, displaying results in a styled frontend}
+          % \resumeItemListEnd
+      % \resumeProjectHeading
+      %     {\textbf{Automation Extension} $|$ \emph{Python, FastAPI, Chrome Extensions}}{}
+      %     \resumeItemListStart
+      %       \resumeItem{Built a Chrome Manifest V3 extension with FastAPI backend to extract webpage elements and automate form submissions, reducing manual input time for Amazon product reviewing}
+      %     \resumeItemListEnd
+      \resumeProjectHeading
+    {\textbf{Canopy} $|$ \emph{XRP Ledger, LangGraph, Python, FastAPI, Next.js}}{}
+    \resumeItemListStart
+        \resumeItem{2nd Place (300+ teams) for the Ripple Prize at TartanHacks 2026 (Carnegie Mellon University).}
+        \resumeItem{Engineered an AI agent using LangGraph and an ML model to monitor live weather and satellite data, achieving 85\% confidence thresholds for claim-less payouts.}
+        \resumeItem{Developed escrow logic and NFT minting on the XRP Ledger to secure insurance funds and issue verifiable digital proof-of-coverage, allowing for instant payments.}
+        \resumeItem{Built a full-stack architecture and a FastAPI backend with PostgreSQL for secure audit logging of AI reasoning.}
+    \resumeItemListEnd
+        \resumeSubHeadingListEnd
+
+
+
+%
+%-----------PROGRAMMING SKILLS-----------
+\section{Technical Skills}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     % \textbf{Languages}{: Java, Python, C/C++, SQL (Postgres), JavaScript, HTML/CSS, R} \\
+     % \textbf{Frameworks}{: React, Node.js, Flask, JUnit, WordPress, Material-UI, FastAPI} \\
+     % \textbf{Developer Tools}{: Git, Docker, TravisCI, Google Cloud Platform, VS Code, Visual Studio, PyCharm, IntelliJ, Eclipse} \\
+     % \textbf{Libraries}{: pandas, NumPy, Matplotlib}
+    % \textbf{Languages}{: Python, Java, C, JavaScript/TypeScript, HTML/CSS, SQL, R} \\
+    % \textbf{Frameworks/Libraries}{: React, Node.js, Flask, FastAPI, PyTorch, OpenCV, REST APIs, JUnit} \\
+    % \textbf{Developer Tools}{: CI/CD Pipelines, Git, GitHub, Docker, VS Code, CLion, IntelliJ, Supabase, Chrome DevTools} \\
+    % \textbf{Spoken Languages}{: Trilingual in English, Mandarin, Cantonese}
+    % }}
+    \textbf{Languages}{: Python, Java, C/C++, JavaScript/TypeScript, PostgreSQL, R} \\
+    \textbf{Frameworks}{: React, Node.js, Flask, FastAPI, PyTorch, REST APIs, WebSockets} \\
+    \textbf{Tools \& Technologies}{: AWS, GCP, PostgreSQL, Git, Github Actions (CI/CD), Supabase, Firebase, PyTorch, OpenCV, Docker, LangChain} \\
+    \textbf{Miscellaneous}: {Distributed Systems, AI/ML, Agile Methodologies, Project Management, Blockchain}
+    }}
+ \end{itemize}
+
+
+%-------------------------------------------
+\end{document}
