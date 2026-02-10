@@ -80,7 +80,7 @@ export const PROJECTS = [
             code: "https://github.com/AlexanderMcGreevy/Obscurafy",
             demo: null,
         },
-        award: "🏆 1st Place HackUMass",
+        award: "🏆 1st Place Cybersecurity Data Protection (HackUMass 2026",
     },
 ];
 
