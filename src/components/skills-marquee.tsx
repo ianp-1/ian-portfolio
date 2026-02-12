@@ -36,10 +36,10 @@ export function SkillsMarquee() {
                 {/* Wrapper for GSAP */}
                 <div ref={marqueeRef} className="flex w-fit">
                     <div className="marquee-content flex items-center gap-12 px-6 shrink-0">
-                        {SKILLS.map((skill, i) => {
+                        {SKILLS.map((skill) => {
                             const Icon = Icons[skill.icon as keyof typeof Icons] || Terminal;
                             return (
-                                <div key={i} className="flex items-center gap-3 text-muted-foreground cursor-default">
+                                <div key={skill.name} className="flex items-center gap-3 text-muted-foreground cursor-default">
                                     <Icon className="h-6 w-6" />
                                     <span className="font-medium text-lg">{skill.name}</span>
                                 </div>
@@ -47,10 +47,10 @@ export function SkillsMarquee() {
                         })}
                     </div>
                     <div className="marquee-content flex items-center gap-12 px-6 shrink-0">
-                        {SKILLS.map((skill, i) => {
+                        {SKILLS.map((skill) => {
                             const Icon = Icons[skill.icon as keyof typeof Icons] || Terminal;
                             return (
-                                <div key={`duplicate-${i}`} className="flex items-center gap-3 text-muted-foreground cursor-default">
+                                <div key={`duplicate-${skill.name}`} className="flex items-center gap-3 text-muted-foreground cursor-default">
                                     <Icon className="h-6 w-6" />
                                     <span className="font-medium text-lg">{skill.name}</span>
                                 </div>
