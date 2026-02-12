@@ -4,8 +4,8 @@ import { Github, Linkedin, Mail } from "lucide-react"
 
 const LINKS = {
     github: "https://github.com/ianp-1",
-    linkedin: "https://linkedin.com/in/ianpang",
-    email: "mailto:ian.pang@example.com" // Replace with actual email if known or keep placeholder
+    linkedin: "https://linkedin.com/in/pang-ian",
+    email: "mailto:ipang@purdue.edu" // Replace with actual email if known or keep placeholder
 }
 
 export function Footer() {
