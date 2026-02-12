@@ -36,7 +36,7 @@ export function SkillsMarquee() {
                 {/* Wrapper for GSAP */}
                 <div ref={marqueeRef} className="flex w-fit">
                     <div className="marquee-content flex items-center gap-12 px-6 shrink-0">
-                        {SKILLS.map((skill, index) => {
+                        {SKILLS.map((skill) => {
                             const Icon = Icons[skill.icon as keyof typeof Icons] || Terminal;
                             return (
                                 <div key={`first-${skill.name}`} className="flex items-center gap-3 text-muted-foreground cursor-default">
@@ -47,10 +47,21 @@ export function SkillsMarquee() {
                         })}
                     </div>
                     <div className="marquee-content flex items-center gap-12 px-6 shrink-0">
-                        {SKILLS.map((skill, index) => {
+                        {SKILLS.map((skill) => {
                             const Icon = Icons[skill.icon as keyof typeof Icons] || Terminal;
                             return (
                                 <div key={`second-${skill.name}`} className="flex items-center gap-3 text-muted-foreground cursor-default">
+                                    <Icon className="h-6 w-6" />
+                                    <span className="font-medium text-lg">{skill.name}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="marquee-content flex items-center gap-12 px-6 shrink-0">
+                        {SKILLS.map((skill) => {
+                            const Icon = Icons[skill.icon as keyof typeof Icons] || Terminal;
+                            return (
+                                <div key={`third-${skill.name}`} className="flex items-center gap-3 text-muted-foreground cursor-default">
                                     <Icon className="h-6 w-6" />
                                     <span className="font-medium text-lg">{skill.name}</span>
                                 </div>
