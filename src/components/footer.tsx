@@ -1,12 +1,7 @@
 
 import Link from "next/link"
 import { Github, Linkedin, Mail } from "lucide-react"
-
-const LINKS = {
-    github: "https://github.com/ianp-1",
-    linkedin: "https://linkedin.com/in/pang-ian",
-    email: "mailto:ipang@purdue.edu" // Replace with actual email if known or keep placeholder
-}
+import { LINKS } from "@/lib/data"
 
 export function Footer() {
     return (
