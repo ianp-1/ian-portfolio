@@ -15,11 +15,13 @@ export function SkillsMarquee() {
         if (marqueeRef.current) {
             const content = marqueeRef.current.querySelector('.marquee-content') as HTMLElement;
             if (content) {
-                const contentWidth = content.scrollWidth;
+                const totalWidth = content.scrollWidth;
+                // We have 2 sets of items. We want to move by the width of 1 set (half the total).
+                // From 0 to -totalWidth/2
 
                 gsap.to(marqueeRef.current, {
-                    x: -contentWidth,
-                    duration: 30,
+                    x: -totalWidth / 2,
+                    duration: 30, // Adjusted duration for better speed
                     ease: "none",
                     repeat: -1,
                 });
@@ -36,21 +38,10 @@ export function SkillsMarquee() {
                 {/* Wrapper for GSAP */}
                 <div ref={marqueeRef} className="flex w-fit">
                     <div className="marquee-content flex items-center gap-12 px-6 shrink-0">
-                        {SKILLS.map((skill, index) => {
+                        {SKILLS.concat(SKILLS).map((skill, i) => {
                             const Icon = Icons[skill.icon as keyof typeof Icons] || Terminal;
                             return (
-                                <div key={`first-${skill.name}`} className="flex items-center gap-3 text-muted-foreground cursor-default">
-                                    <Icon className="h-6 w-6" />
-                                    <span className="font-medium text-lg">{skill.name}</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <div className="marquee-content flex items-center gap-12 px-6 shrink-0">
-                        {SKILLS.map((skill, index) => {
-                            const Icon = Icons[skill.icon as keyof typeof Icons] || Terminal;
-                            return (
-                                <div key={`second-${skill.name}`} className="flex items-center gap-3 text-muted-foreground cursor-default">
+                                <div key={i} className="flex items-center gap-3 text-muted-foreground cursor-default">
                                     <Icon className="h-6 w-6" />
                                     <span className="font-medium text-lg">{skill.name}</span>
                                 </div>
