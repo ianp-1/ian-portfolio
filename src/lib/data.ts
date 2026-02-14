@@ -15,14 +15,6 @@ export const HERO = {
 
 export const EXPERIENCE = [
     {
-        company: "American Family Insurance",
-        role: "Software Engineer Intern",
-        period: "Incoming Summer 2026",
-        description: [
-            "Coming soon..."
-        ],
-    },
-    {
         company: "FedEx - The Data Mine at Purdue",
         role: "Undergraduate Data Science Researcher",
         period: "Aug 2025 - Present",
