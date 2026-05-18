@@ -62,7 +62,7 @@ export const PROJECTS = [
             code: "https://github.com/ianp-1/nadir",
             demo: null,
         },
-        award: "🏆 Best Deployed on DigitalOcean (HackIllinois 2026)",
+        award: "🏆 Best Use of DigitalOcean (HackIllinois 2026)",
     },
     {
         title: "Canopy",
