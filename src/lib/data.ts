@@ -55,9 +55,19 @@ export const EXPERIENCE = [
 
 export const PROJECTS = [
     {
+        title: "Nadir",
+        description: "A decentralized disaster verification platform combining AI satellite analysis with crowd-sourced human voting.",
+        tags: ["Next.js", "Solana", "Python", "PostgreSQL", "DigitalOcean S3/Kubernetes"],
+        links: {
+            code: "https://github.com/ianp-1/nadir",
+            demo: null,
+        },
+        award: "🏆 Best Deployed on DigitalOcean (HackIllinois 2026)",
+    },
+    {
         title: "Canopy",
         description: "Decentralized parametric insurance protocol on XRPL. Automates payouts using real-time weather data.",
-        tags: ["Next.js", "XRPL", "Python", "LangGraph"],
+        tags: ["Next.js", "XRPL", "Python", "LangGraph", "PostgreSQL"],
         links: {
             code: "https://github.com/ianp-1/Canopy",
             demo: null,
