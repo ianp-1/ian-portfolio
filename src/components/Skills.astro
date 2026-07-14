@@ -1,0 +1,67 @@
+---
+import Section from "./Section.astro";
+import { SKILLS } from "../data/site";
+---
+
+<Section id="skills" title="Stack">
+  <div class="grid grid-cols-1 gap-x-10 gap-y-10 sm:grid-cols-3">
+    {
+      SKILLS.map((group) => (
+        <div class="reveal">
+          <h3 class="mb-4 font-mono text-[0.75rem] uppercase tracking-[0.1em] text-muted">
+            {group.group}
+          </h3>
+          <ul class="flex flex-col gap-1">
+            {group.items.map((item) => (
+              <li class="skill-item font-sans text-[1.05rem] text-ink">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))
+    }
+  </div>
+</Section>
+
+<style>
+  /* Slide + tick built from transform only — no layout-property animation. */
+  .skill-item {
+    position: relative;
+    width: fit-content;
+    transition:
+      color 0.18s ease,
+      transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .skill-item::before {
+    content: "";
+    position: absolute;
+    left: -18px;
+    top: 50%;
+    width: 12px;
+    height: 1.5px;
+    background: var(--accent);
+    transform: translateY(-50%) scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .skill-item:hover {
+    color: var(--accent);
+    transform: translateX(20px);
+  }
+  .skill-item:hover::before {
+    transform: translateY(-50%) scaleX(1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skill-item {
+      transition: color 0.18s ease;
+    }
+    .skill-item:hover {
+      transform: none;
+    }
+    .skill-item::before {
+      display: none;
+    }
+  }
+</style>

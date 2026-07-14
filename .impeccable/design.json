@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-14T00:00:00Z",
+  "title": "Design System: Ian Pang — Portfolio",
+  "extensions": {
+    "colorMeta": {
+      "accent": { "role": "primary", "displayName": "Moss Green", "canonical": "oklch(0.52 0.13 132)", "tonalRamp": ["oklch(0.22 0.06 132)", "oklch(0.30 0.08 132)", "oklch(0.38 0.10 132)", "oklch(0.46 0.12 132)", "oklch(0.52 0.13 132)", "oklch(0.62 0.14 133)", "oklch(0.74 0.15 134)", "oklch(0.88 0.10 135)"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "oklch(0.20 0.01 150)", "tonalRamp": ["oklch(0.14 0 0)", "oklch(0.20 0.01 150)", "oklch(0.30 0.01 150)", "oklch(0.42 0.01 150)", "oklch(0.50 0.01 150)", "oklch(0.66 0.008 150)", "oklch(0.82 0.005 150)", "oklch(0.93 0.005 150)"] },
+      "bg": { "role": "neutral", "displayName": "Paper", "canonical": "oklch(1 0 0)", "tonalRamp": ["oklch(0.14 0 0)", "oklch(0.20 0 0)", "oklch(0.40 0 0)", "oklch(0.60 0 0)", "oklch(0.80 0 0)", "oklch(0.90 0 0)", "oklch(0.975 0.003 150)", "oklch(1 0 0)"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Hero name and the single positioning line only." },
+      "label": { "displayName": "Mono Label", "purpose": "Genuine metadata only — dates, tags, indices, status. Geist Mono." }
+    },
+    "shadows": [
+      { "name": "hover-lift", "value": "0 6px 24px -8px rgba(20,24,20,0.18)", "purpose": "Soft lift on project-row / interactive hover. Never at rest." }
+    ],
+    "motion": [
+      { "name": "ease-out-expo", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Default easing for hover and reveal transitions." },
+      { "name": "dur-hover", "value": "180ms", "purpose": "Hover state transitions." },
+      { "name": "dur-reveal", "value": "500ms", "purpose": "Scroll-in reveals (staggered, per section)." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Selected-Work Row",
+      "kind": "custom",
+      "refersTo": "project-row",
+      "description": "Signature component. Flat list row that comes alive on hover: lift, title→accent, underline wipe, arrow slide, tag cascade.",
+      "html": "<a class=\"ds-work-row\" href=\"#\"><div class=\"ds-work-main\"><h3 class=\"ds-work-title\">Nadir <span class=\"ds-work-arrow\">→</span></h3><p class=\"ds-work-desc\">Decentralized disaster verification combining AI satellite analysis with crowd-sourced voting.</p><div class=\"ds-work-tags\"><span class=\"ds-chip\">Next.js</span><span class=\"ds-chip\">Solana</span><span class=\"ds-chip\">Python</span></div></div><span class=\"ds-work-award\">🏆 Best Use of DigitalOcean</span></a>",
+      "css": ".ds-work-row { display:flex; justify-content:space-between; gap:24px; padding:24px 0; border-bottom:1px solid #e4e6e1; text-decoration:none; color:#1c1f1c; transition:transform .18s cubic-bezier(0.16,1,0.3,1), box-shadow .18s cubic-bezier(0.16,1,0.3,1); } .ds-work-row:hover { transform:translateY(-2px); box-shadow:0 6px 24px -8px rgba(20,24,20,0.18); } .ds-work-title { font:600 1.375rem/1.1 'General Sans',sans-serif; letter-spacing:-0.02em; margin:0 0 6px; display:inline-flex; align-items:center; gap:8px; position:relative; } .ds-work-title::after { content:''; position:absolute; left:0; bottom:-2px; height:2px; width:100%; background:#5e7f3a; clip-path:inset(0 100% 0 0); transition:clip-path .3s cubic-bezier(0.16,1,0.3,1); } .ds-work-row:hover .ds-work-title { color:#5e7f3a; } .ds-work-row:hover .ds-work-title::after { clip-path:inset(0 0 0 0); } .ds-work-arrow { opacity:0; transform:translateX(-6px); transition:opacity .18s,transform .18s; } .ds-work-row:hover .ds-work-arrow { opacity:1; transform:translateX(0); } .ds-work-desc { font:400 1rem/1.6 'General Sans',sans-serif; color:#6e716c; margin:0 0 12px; max-width:60ch; } .ds-work-tags { display:flex; flex-wrap:wrap; gap:8px; } .ds-chip { font:500 .8125rem/1.4 'Geist Mono',monospace; background:#f6f7f5; color:#6e716c; padding:4px 12px; border-radius:999px; transition:color .18s,transform .18s; } .ds-work-row:hover .ds-chip { color:#1c1f1c; } .ds-work-award { font:500 .8125rem/1.4 'Geist Mono',monospace; color:#6e716c; white-space:nowrap; } @media (prefers-reduced-motion: reduce){ .ds-work-row,.ds-work-title::after,.ds-work-arrow,.ds-chip{ transition:none; } }"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Resume / primary contact CTA. Ink pill that fills accent on hover.",
+      "html": "<a class=\"ds-btn-primary\" href=\"#\">Resume <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M7 17L17 7M17 7H7M17 7V17\"/></svg></a>",
+      "css": ".ds-btn-primary { display:inline-flex; align-items:center; gap:8px; font:500 .9375rem/1 'General Sans',sans-serif; background:#1c1f1c; color:#fff; padding:12px 24px; border-radius:999px; text-decoration:none; transition:background .18s cubic-bezier(0.16,1,0.3,1), transform .18s cubic-bezier(0.16,1,0.3,1); } .ds-btn-primary:hover { background:#5e7f3a; transform:translateY(-1px); } .ds-btn-primary:focus-visible { outline:2px solid #5e7f3a; outline-offset:2px; } @media (prefers-reduced-motion: reduce){ .ds-btn-primary{ transition:background .18s; } }"
+    },
+    {
+      "name": "Tech Chip",
+      "kind": "chip",
+      "refersTo": "tag-chip",
+      "description": "Monospace tech tag. Flat, borderless, pill.",
+      "html": "<span class=\"ds-chip\">TypeScript</span>",
+      "css": ".ds-chip { font:500 .8125rem/1.4 'Geist Mono',monospace; background:#f6f7f5; color:#6e716c; padding:4px 12px; border-radius:999px; }"
+    },
+    {
+      "name": "Nav Link",
+      "kind": "nav",
+      "refersTo": "project-row",
+      "description": "Sticky nav section link, mono, accent underline wipe on hover.",
+      "html": "<a class=\"ds-nav-link\" href=\"#work\">work</a>",
+      "css": ".ds-nav-link { position:relative; font:500 .8125rem/1.4 'Geist Mono',monospace; color:#6e716c; text-decoration:none; padding:4px 0; } .ds-nav-link::after { content:''; position:absolute; left:0; bottom:0; height:1.5px; width:100%; background:#5e7f3a; clip-path:inset(0 100% 0 0); transition:clip-path .22s cubic-bezier(0.16,1,0.3,1); } .ds-nav-link:hover { color:#1c1f1c; } .ds-nav-link:hover::after { clip-path:inset(0 0 0 0); } @media (prefers-reduced-motion: reduce){ .ds-nav-link::after{ transition:none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Machined Page",
+    "overview": "A page that reads like a precision instrument's faceplate — exact, quiet, load-bearing. 90% calm, 10% signature. The moss-green accent is rationed to interaction states only; the craft concentrates in one hover interaction (the Selected-Work row). The site is itself the work sample — speed, correctness, and restraint are the argument.",
+    "keyCharacteristics": [
+      "Editorial-typographic base, but sans-driven (no serif) — dodges the saturated magazine lane",
+      "Near-monochrome; a single rationed moss-green accent carries all hue",
+      "Motion is interaction-triggered, not scroll-decorative",
+      "Metadata set in Geist Mono as real engineering texture",
+      "Speed and correctness treated as design features"
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "The moss-green accent appears on ≤10% of any screen and only on interaction states. If green is visible before you hover/focus/activate, it's wrong.", "section": "colors" },
+      { "name": "The Neutral Ground Rule", "body": "Backgrounds are chroma 0 (dark) or pure white (light). Hue lives exclusively in the accent.", "section": "colors" },
+      { "name": "The Mono-Is-Metadata Rule", "body": "Geist Mono is only for real data — dates, tags, indices, status. Never headings, body, or decoration.", "section": "typography" },
+      { "name": "The No-Italic-Serif Rule", "body": "No serif, no italic display. The moment a Fraunces-style italic headline appears, the page has collapsed into the saturated editorial lane.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. Shadow appears only as a response to hover/focus.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the accent on ≤10% of any screen, only on interaction states",
+      "Do keep backgrounds neutral — pure white or near-black chroma 0",
+      "Do set all metadata in Geist Mono, headings/body in General Sans",
+      "Do make Selected Work a hairline-separated list of rows with one crafted hover",
+      "Do ease with exponential out-curves, 150–250ms hover, no bounce",
+      "Do provide a prefers-reduced-motion alternative for every animation",
+      "Do treat speed as a design feature: near-zero JS, self-hosted fonts, no layout shift"
+    ],
+    "donts": [
+      "Don't use purple/blue gradient-mesh or floating-blob hero backgrounds",
+      "Don't use glassmorphism or gradient text",
+      "Don't apply uniform fade-up-on-scroll to every section",
+      "Don't build the SaaS hero-metric template",
+      "Don't repeat identical icon-card grids or tracked eyebrows / 01 02 03 markers on every section",
+      "Don't reintroduce the auto-scrolling skills marquee — use a static hover grid",
+      "Don't drift into the editorial-magazine lane: no italic serif, no ruled broadsheet grid",
+      "Don't use mono for anything but genuine metadata",
+      "Don't write hype copy — lead with real numbers"
+    ]
+  }
+}

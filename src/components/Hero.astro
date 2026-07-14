@@ -1,0 +1,97 @@
+---
+import { SITE, LINKS } from "../data/site";
+
+const socials = [
+  { label: "github", href: LINKS.github, external: true },
+  { label: "linkedin", href: LINKS.linkedin, external: true },
+  { label: "email", href: LINKS.email, external: false },
+];
+---
+
+<section
+  class="mx-auto flex min-h-[92svh] max-w-5xl flex-col justify-center px-6 pb-20 pt-32 md:px-10"
+>
+  <p class="mb-6 font-mono text-[0.8125rem] text-muted">
+    {SITE.location}
+  </p>
+
+  <h1
+    class="max-w-3xl font-sans text-[clamp(2.75rem,6vw,4.5rem)] font-semibold leading-[1.02] tracking-[-0.03em] text-ink"
+  >
+    {SITE.name}
+  </h1>
+
+  <p
+    class="mt-6 max-w-[54ch] font-sans text-lg leading-relaxed text-muted md:text-xl"
+  >
+    {SITE.tagline}
+  </p>
+
+  <div class="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">
+    <a
+      href={LINKS.resume}
+      target="_blank"
+      rel="noopener"
+      class="btn-primary group inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3 font-sans text-[0.9375rem] font-medium text-paper"
+    >
+      View résumé
+      <svg
+        class="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+        width="14" height="14" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2.2" aria-hidden="true"
+      >
+        <path d="M7 17L17 7M17 7H7M17 7V17" />
+      </svg>
+    </a>
+
+    {
+      socials.map((s) => (
+        <a
+          href={s.href}
+          target={s.external ? "_blank" : undefined}
+          rel={s.external ? "noopener" : undefined}
+          class="link-underline font-mono text-[0.8125rem] font-medium text-muted transition-colors hover:text-ink"
+        >
+          {s.label}
+        </a>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .btn-primary {
+    transition:
+      background-color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .btn-primary:hover {
+    background-color: var(--accent);
+    transform: translateY(-1px);
+  }
+
+  .link-underline {
+    position: relative;
+  }
+  .link-underline::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -3px;
+    height: 1.5px;
+    width: 100%;
+    background: var(--accent);
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .link-underline:hover::after {
+    clip-path: inset(0 0 0 0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn-primary,
+    .link-underline::after {
+      transition: none;
+    }
+  }
+</style>

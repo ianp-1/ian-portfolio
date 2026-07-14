@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "geist mono",
+        "reason": "User explicitly selected General Sans + Geist Mono pairing",
+        "createdAt": "2026-07-14T19:16:06.924Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,142 @@
+---
+import { getCollection } from "astro:content";
+import Section from "./Section.astro";
+
+const projects = (await getCollection("projects")).sort(
+  (a, b) => a.data.order - b.data.order,
+);
+---
+
+<Section id="work" title="Selected work" meta={`${projects.length} projects`}>
+  <ul class="flex flex-col">
+    {
+      projects.map((project) => {
+        const { title, description, tags, award, code, demo } = project.data;
+        const href = demo ?? code ?? "#";
+        // "Prize · Event" splits into two deliberate lines so the right
+        // column never rag-wraps mid-phrase.
+        const [awardPrize, awardEvent] = award
+          ? award.split("·").map((part) => part.trim())
+          : [];
+        return (
+          <li class="reveal">
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener"
+              class="work-row group grid grid-cols-1 gap-x-8 gap-y-3 rounded-md border-b border-line px-2 py-6 md:grid-cols-[1fr_auto] md:items-start"
+            >
+              <div>
+                <h3 class="work-title inline-flex items-center gap-2 font-sans text-[1.375rem] font-semibold tracking-[-0.02em] text-ink">
+                  {title}
+                  <span class="work-arrow text-accent" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <path d="M7 17L17 7M17 7H7M17 7V17" />
+                    </svg>
+                  </span>
+                </h3>
+                <p class="mt-2 max-w-[58ch] font-sans text-[0.95rem] leading-relaxed text-muted">
+                  {description}
+                </p>
+                <ul class="work-tags mt-4 flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <li class="chip rounded-full bg-surface px-3 py-1 font-mono text-[0.75rem] font-medium text-muted">
+                      {tag}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {awardPrize && (
+                <div class="font-mono leading-snug md:max-w-[26ch] md:text-right">
+                  <span class="block text-[0.8125rem] font-medium text-ink">
+                    {awardPrize}
+                  </span>
+                  {awardEvent && (
+                    <span class="mt-1 block text-[0.75rem] text-muted">
+                      {awardEvent}
+                    </span>
+                  )}
+                </div>
+              )}
+            </a>
+          </li>
+        );
+      })
+    }
+  </ul>
+</Section>
+
+<style>
+  .work-row {
+    transition:
+      transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+      background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .work-row:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--hover-shadow);
+    background-color: var(--surface);
+  }
+
+  .work-title {
+    position: relative;
+  }
+  .work-title::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -3px;
+    height: 2px;
+    width: 100%;
+    background: var(--accent);
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .work-row:hover .work-title {
+    color: var(--accent);
+  }
+  .work-row:hover .work-title::after {
+    clip-path: inset(0 0 0 0);
+  }
+
+  .work-arrow {
+    opacity: 0;
+    transform: translateX(-6px);
+    transition:
+      opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .work-row:hover .work-arrow {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* Tag chips cascade in on row hover */
+  .chip {
+    transition:
+      color 0.18s ease,
+      transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .work-row:hover .chip {
+    color: var(--ink);
+  }
+  .work-row:hover .work-tags .chip:nth-child(1) { transform: translateY(-2px); transition-delay: 0ms; }
+  .work-row:hover .work-tags .chip:nth-child(2) { transform: translateY(-2px); transition-delay: 30ms; }
+  .work-row:hover .work-tags .chip:nth-child(3) { transform: translateY(-2px); transition-delay: 60ms; }
+  .work-row:hover .work-tags .chip:nth-child(4) { transform: translateY(-2px); transition-delay: 90ms; }
+  .work-row:hover .work-tags .chip:nth-child(5) { transform: translateY(-2px); transition-delay: 120ms; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .work-row,
+    .work-title::after,
+    .work-arrow,
+    .chip {
+      transition: color 0.18s ease;
+      transform: none !important;
+    }
+    .work-arrow {
+      opacity: 1;
+    }
+  }
+</style>

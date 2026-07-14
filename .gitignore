@@ -4,21 +4,13 @@
 /node_modules
 /.pnp
 .pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
 
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
+# build output
+dist/
 /build
+
+# astro
+.astro/
 
 # misc
 .DS_Store
@@ -38,7 +30,7 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
+# agents
 /.agent/
 /.agents/

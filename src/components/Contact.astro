@@ -1,0 +1,105 @@
+---
+import { SITE, LINKS } from "../data/site";
+
+const socials = [
+  { label: "GitHub", href: LINKS.github, external: true },
+  { label: "LinkedIn", href: LINKS.linkedin, external: true },
+  { label: "Résumé", href: LINKS.resume, external: true },
+];
+---
+
+<section id="contact" class="mx-auto max-w-5xl scroll-mt-24 px-6 py-24 md:px-10 md:py-32">
+  <h2 class="max-w-2xl font-sans text-[clamp(2rem,5vw,3.25rem)] font-semibold leading-[1.05] tracking-[-0.03em] text-ink">
+    Let's build something.
+  </h2>
+
+  <a
+    href={LINKS.email}
+    class="email-link group mt-8 inline-flex items-center gap-3 font-sans text-[clamp(1.25rem,3.5vw,2rem)] font-medium tracking-[-0.02em] text-ink"
+  >
+    <span class="email-text">{SITE.email}</span>
+    <span class="email-arrow text-accent" aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M7 17L17 7M17 7H7M17 7V17" />
+      </svg>
+    </span>
+  </a>
+
+  <div class="mt-10 flex flex-wrap gap-x-6 gap-y-3">
+    {
+      socials.map((s) => (
+        <a
+          href={s.href}
+          target={s.external ? "_blank" : undefined}
+          rel={s.external ? "noopener" : undefined}
+          class="link-underline font-mono text-[0.8125rem] font-medium text-muted transition-colors hover:text-ink"
+        >
+          {s.label}
+        </a>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .email-text {
+    position: relative;
+  }
+  .email-text::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -2px;
+    height: 2px;
+    width: 100%;
+    background: var(--accent);
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 0.36s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .email-link:hover .email-text {
+    color: var(--accent);
+  }
+  .email-link:hover .email-text::after {
+    clip-path: inset(0 0 0 0);
+  }
+
+  .email-arrow {
+    opacity: 0;
+    transform: translate(-8px, 4px);
+    transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.26s;
+  }
+  .email-link:hover .email-arrow {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+
+  .link-underline {
+    position: relative;
+  }
+  .link-underline::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -3px;
+    height: 1.5px;
+    width: 100%;
+    background: var(--accent);
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .link-underline:hover::after {
+    clip-path: inset(0 0 0 0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .email-text::after,
+    .email-arrow,
+    .link-underline::after {
+      transition: none;
+    }
+    .email-arrow {
+      opacity: 1;
+      transform: none;
+    }
+  }
+</style>

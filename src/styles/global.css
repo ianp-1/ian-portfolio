@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+/* ── Fonts (self-hosted) ─────────────────────────────────────────── */
+@font-face {
+  font-family: "General Sans";
+  src: url("/fonts/general-sans-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "General Sans";
+  src: url("/fonts/general-sans-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "General Sans";
+  src: url("/fonts/general-sans-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/geist-mono-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/geist-mono-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Dark-mode variant driven by [data-theme] ────────────────────── */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ── Semantic tokens (OKLCH). Hue lives only in the accent. ──────── */
+:root {
+  --paper: oklch(1 0 0);
+  --ink: oklch(0.2 0.012 150);
+  --surface: oklch(0.975 0.004 150);
+  --muted: oklch(0.48 0.012 150);
+  --line: oklch(0.9 0.006 150);
+  --accent: oklch(0.52 0.13 132);
+  --accent-strong: oklch(0.46 0.12 132);
+  --hover-shadow: 0 6px 24px -8px oklch(0.2 0.02 150 / 0.18);
+}
+
+:root[data-theme="dark"] {
+  --paper: oklch(0.145 0 0);
+  --ink: oklch(0.93 0.005 150);
+  --surface: oklch(0.2 0.004 150);
+  --muted: oklch(0.66 0.01 150);
+  --line: oklch(0.27 0.006 150);
+  --accent: oklch(0.8 0.14 134);
+  --accent-strong: oklch(0.86 0.13 134);
+  --hover-shadow: 0 8px 28px -8px oklch(0 0 0 / 0.55);
+}
+
+/* ── Map tokens into Tailwind's theme (utilities resolve live) ───── */
+@theme inline {
+  --font-sans: "General Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+}
+
+/* ── Base ────────────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 6rem;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 400;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--paper);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Reveal-on-scroll (enhances an already-visible default) ──────── */
+.reveal {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .js .reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .js .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+}
