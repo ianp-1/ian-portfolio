@@ -1,10 +1,11 @@
 ---
 company: American Family Insurance
 role: Software Engineer Intern
-period: Jun 2026 — Present
+period: Jun 2026 — Aug 2026
 order: 2
 highlights:
-  - Designed AWS Lambda automation pipeline (Python, CloudFormation, S3) to recover failed records in a nationwide agent-onboarding system, replacing manual multi-step fixes with a single API call while keeping PII data within AWS.
-  - Shipped a full-stack application (Next.js, FastAPI, AWS API Gateway) for internal users to self-serve record reprocessing and real-time agent-status checks, condensing resolution time from hours to seconds.
-  - Standardized Datadog observability across 20+ corporate gateway endpoints for 6 insurance partners, implementing custom latency metrics and time-series dashboards to detect bottlenecks.
+  - Designed a serverless AWS pipeline (Python, Lambda, API Gateway, S3, DynamoDB) to recover failed onboarding records, replacing manual database fixes with a simplified process while ensuring strict PII isolation.
+  - Built a full-stack internal platform (Next.js, REST API) for end-to-end self-service record reprocessing and real-time agent status tracking, secured with Microsoft Entra ID and OAuth 2.0 SSO.
+  - Architected CI/CD deployment pipelines and modular Infrastructure as Code templates to deploy the containerized platform (Docker, AWS ECS on Fargate), securing intranet traffic with Route 53, an ALB, and AWS WAF.
+  - Standardized Datadog observability across 20+ gateway endpoints for 6 insurance partners, building custom latency metrics and time-series dashboards to proactively detect and isolate API bottlenecks.
 ---
