@@ -8,12 +8,12 @@ import { SKILLS } from "../data/site";
     {
       SKILLS.map((group) => (
         <div class="reveal">
-          <h3 class="mb-4 font-mono text-[0.75rem] uppercase tracking-[0.1em] text-muted">
+          <h3 class="mb-4 font-mono text-sm font-medium text-muted">
             {group.group}
           </h3>
           <ul class="flex flex-col gap-1">
             {group.items.map((item) => (
-              <li class="skill-item font-sans text-[1.05rem] text-ink">
+              <li class="skill-item font-sans text-body text-ink">
                 {item}
               </li>
             ))}
@@ -25,7 +25,7 @@ import { SKILLS } from "../data/site";
 </Section>
 
 <style>
-  /* Slide + tick built from transform only — no layout-property animation. */
+  /* Slide + tick built from transform only: no layout-property animation. */
   .skill-item {
     position: relative;
     width: fit-content;

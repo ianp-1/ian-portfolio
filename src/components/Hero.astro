@@ -1,97 +1,269 @@
 ---
 import { SITE, LINKS } from "../data/site";
-
-const socials = [
-  { label: "github", href: LINKS.github, external: true },
-  { label: "linkedin", href: LINKS.linkedin, external: true },
-  { label: "email", href: LINKS.email, external: false },
-];
 ---
 
 <section
-  class="mx-auto flex min-h-[92svh] max-w-5xl flex-col justify-center px-6 pb-20 pt-32 md:px-10"
+  id="hero"
+  data-hero-surface
+  class="hero-section relative min-h-[100svh] w-full overflow-hidden"
 >
-  <p class="mb-6 font-mono text-[0.8125rem] text-muted">
-    {SITE.location}
-  </p>
+  <canvas
+    id="hero-ascii-canvas"
+    class="absolute inset-0 h-full w-full select-none"
+    style="touch-action: pan-y;"
+    aria-hidden="true"
+  ></canvas>
 
-  <h1
-    class="max-w-3xl font-sans text-[clamp(2.75rem,6vw,4.5rem)] font-semibold leading-[1.02] tracking-[-0.03em] text-ink"
+  <div
+    class="pointer-events-none relative z-10 mx-auto flex min-h-[100svh] w-full max-w-6xl flex-col justify-end gap-8 px-6 pb-8 pt-24 md:px-10 md:pb-12 lg:flex-row lg:items-end lg:justify-between"
   >
-    {SITE.name}
-  </h1>
-
-  <p
-    class="mt-6 max-w-[54ch] font-sans text-lg leading-relaxed text-muted md:text-xl"
-  >
-    {SITE.tagline}
-  </p>
-
-  <div class="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">
-    <a
-      href={LINKS.resume}
-      target="_blank"
-      rel="noopener"
-      class="btn-primary group inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3 font-sans text-[0.9375rem] font-medium text-paper"
-    >
-      View résumé
-      <svg
-        class="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-        width="14" height="14" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="2.2" aria-hidden="true"
+    <div id="hero-copy" class="hero-copy pointer-events-auto max-w-2xl">
+      <h1
+        class="font-sans text-[clamp(3.75rem,8.5vw,7.25rem)] font-semibold leading-[0.94] tracking-[-0.04em] text-ink"
       >
-        <path d="M7 17L17 7M17 7H7M17 7V17" />
-      </svg>
-    </a>
+        {SITE.name}
+      </h1>
 
-    {
-      socials.map((s) => (
+      <p
+        class="mt-4 max-w-[44ch] font-sans text-body leading-relaxed text-muted"
+      >
+        {SITE.tagline}
+      </p>
+
+      <div class="mt-7">
         <a
-          href={s.href}
-          target={s.external ? "_blank" : undefined}
-          rel={s.external ? "noopener" : undefined}
-          class="link-underline font-mono text-[0.8125rem] font-medium text-muted transition-colors hover:text-ink"
+          href={LINKS.resume}
+          target="_blank"
+          rel="noopener"
+          class="btn-primary group inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3 font-sans text-body font-medium text-paper"
         >
-          {s.label}
+          View résumé
+          <svg
+            class="btn-arrow group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            aria-hidden="true"
+          >
+            <path d="M7 17L17 7M17 7H7M17 7V17" />
+          </svg>
         </a>
-      ))
-    }
+      </div>
+    </div>
+
+    <aside
+      data-ascii-dock
+      aria-label="ASCII canvas controls"
+      class="ascii-dock pointer-events-auto w-full max-w-full self-start rounded-xl border border-line p-3 sm:w-auto lg:self-end"
+    >
+      <div class="flex flex-col gap-2.5">
+        <div class="segmented-group" role="radiogroup" aria-label="Scene">
+          <label class="segmented-option">
+            <input
+              type="radio"
+              name="hero-scene"
+              value="ferro"
+              class="segmented-input"
+              checked
+            />
+            <span class="segmented-label">Ferro</span>
+          </label>
+          <label class="segmented-option">
+            <input
+              type="radio"
+              name="hero-scene"
+              value="terrain"
+              class="segmented-input"
+            />
+            <span class="segmented-label">Terrain</span>
+          </label>
+          <label class="segmented-option">
+            <input
+              type="radio"
+              name="hero-scene"
+              value="orbit"
+              class="segmented-input"
+            />
+            <span class="segmented-label">Orbit</span>
+          </label>
+          <label class="segmented-option">
+            <input
+              type="radio"
+              name="hero-scene"
+              value="flow"
+              class="segmented-input"
+            />
+            <span class="segmented-label">Flow</span>
+          </label>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2.5">
+          <div class="segmented-group" role="radiogroup" aria-label="Character set">
+            <label class="segmented-option">
+              <input
+                type="radio"
+                name="hero-charset"
+                value="ascii"
+                class="segmented-input"
+                checked
+              />
+              <span class="segmented-label">Ascii</span>
+            </label>
+            <label class="segmented-option">
+              <input
+                type="radio"
+                name="hero-charset"
+                value="braille"
+                class="segmented-input"
+              />
+              <span class="segmented-label">Braille</span>
+            </label>
+            <label class="segmented-option">
+              <input
+                type="radio"
+                name="hero-charset"
+                value="blocks"
+                class="segmented-input"
+              />
+              <span class="segmented-label">Blocks</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </aside>
   </div>
 </section>
 
 <style>
   .btn-primary {
     transition:
-      background-color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
-      transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+      background-color 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .btn-primary:hover {
     background-color: var(--accent);
     transform: translateY(-1px);
   }
+  .btn-arrow {
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  }
 
-  .link-underline {
-    position: relative;
-  }
-  .link-underline::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    bottom: -3px;
-    height: 1.5px;
-    width: 100%;
-    background: var(--accent);
-    clip-path: inset(0 100% 0 0);
-    transition: clip-path 0.24s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .link-underline:hover::after {
-    clip-path: inset(0 0 0 0);
+  .ascii-dock {
+    background-color: color-mix(in oklab, var(--paper) 88%, transparent);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
   }
 
   @media (prefers-reduced-motion: reduce) {
     .btn-primary,
-    .link-underline::after {
+    .btn-arrow {
       transition: none;
+    }
+    .btn-primary:hover {
+      transform: none;
     }
   }
 </style>
+
+<script>
+  import {
+    mountHeroAscii,
+    type AsciiCharset,
+    type AsciiScene,
+    type HeroAsciiHandle,
+  } from "../lib/ascii-engine";
+
+  const heroSection = document.getElementById("hero");
+  const canvas = document.getElementById("hero-ascii-canvas");
+  const clearElement = document.getElementById("hero-copy");
+  const sceneInputs = Array.from(
+    document.querySelectorAll<HTMLInputElement>('input[name="hero-scene"]'),
+  );
+  const charsetInputs = Array.from(
+    document.querySelectorAll<HTMLInputElement>('input[name="hero-charset"]'),
+  );
+
+  let engine: HeroAsciiHandle | null = null;
+
+  if (canvas instanceof HTMLCanvasElement) {
+    const initialScene =
+      (sceneInputs.find((input) => input.checked)?.value as AsciiScene) ??
+      "ferro";
+    const initialCharset =
+      (charsetInputs.find((input) => input.checked)?.value as AsciiCharset) ??
+      "ascii";
+
+    try {
+      engine = mountHeroAscii(canvas, {
+        clearElement,
+        initialScene,
+        initialCharset,
+      });
+    } catch {
+      // Leave static hero copy visible if WebGL/2D setup fails.
+    }
+
+    window.addEventListener(
+      "pagehide",
+      (event) => {
+        if (!event.persisted) {
+          engine?.destroy();
+          engine = null;
+        }
+      },
+      { once: true },
+    );
+  }
+
+  sceneInputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      if (!engine || !input.checked) return;
+      engine.setScene(input.value as AsciiScene);
+    });
+  });
+
+  charsetInputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      if (!engine || !input.checked) return;
+      engine.setCharset(input.value as AsciiCharset);
+    });
+  });
+
+  if (heroSection && canvas instanceof HTMLCanvasElement) {
+    let downX = 0;
+    let downY = 0;
+    let pointerDownOnHero = false;
+
+    heroSection.addEventListener(
+      "pointerdown",
+      (event) => {
+        const target = event.target as Element | null;
+        if (target?.closest("a, button, label, input, [data-ascii-dock]")) {
+          pointerDownOnHero = false;
+          return;
+        }
+        pointerDownOnHero = true;
+        downX = event.clientX;
+        downY = event.clientY;
+      },
+      { passive: true },
+    );
+
+    heroSection.addEventListener("click", (event) => {
+      if (!engine || !pointerDownOnHero) return;
+      pointerDownOnHero = false;
+      const target = event.target as Element | null;
+      if (target?.closest("a, button, label, input, [data-ascii-dock]")) return;
+      if (Math.hypot(event.clientX - downX, event.clientY - downY) > 6) return;
+
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const normX = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+      const normY = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+      engine.triggerShockwave(normX, normY);
+    });
+  }
+</script>

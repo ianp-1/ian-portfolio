@@ -50,12 +50,17 @@
   --accent: oklch(0.52 0.13 132);
   --accent-strong: oklch(0.46 0.12 132);
   --hover-shadow: 0 6px 24px -8px oklch(0.2 0.02 150 / 0.18);
+
+  /* Strict 3-step body typography scale */
+  --text-heading: clamp(1.75rem, 3.2vw, 2.5rem);
+  --text-body: 1rem;
+  --text-sm: 0.875rem;
 }
 
 :root[data-theme="dark"] {
-  --paper: oklch(0.145 0 0);
+  --paper: oklch(0.187 0 0);
   --ink: oklch(0.93 0.005 150);
-  --surface: oklch(0.2 0.004 150);
+  --surface: oklch(0.225 0.004 150);
   --muted: oklch(0.66 0.01 150);
   --line: oklch(0.27 0.006 150);
   --accent: oklch(0.8 0.14 134);
@@ -76,6 +81,18 @@
   --color-accent-strong: var(--accent-strong);
 }
 
+@utility text-heading {
+  font-size: var(--text-heading);
+}
+
+@utility text-body {
+  font-size: var(--text-body);
+}
+
+@utility text-sm {
+  font-size: var(--text-sm);
+}
+
 /* ── Base ────────────────────────────────────────────────────────── */
 html {
   scroll-behavior: smooth;
@@ -87,6 +104,7 @@ body {
   background-color: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
+  font-size: var(--text-body);
   font-weight: 400;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -113,6 +131,69 @@ p {
   text-wrap: pretty;
 }
 
+/* ── Segmented radio controls & switch (ASCII dock & specimen switcher) ── */
+.segmented-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background-color: color-mix(in oklab, var(--surface) 82%, transparent);
+}
+
+.segmented-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.segmented-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.segmented-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  padding: 0.3125rem 0.625rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--muted);
+  transition:
+    background-color 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.segmented-option:hover .segmented-input:not(:checked) + .segmented-label {
+  color: var(--ink);
+  background-color: color-mix(in oklab, var(--ink) 6%, transparent);
+}
+
+.segmented-input:checked + .segmented-label {
+  background-color: var(--ink);
+  color: var(--paper);
+}
+
+.segmented-input:focus-visible + .segmented-label {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -122,6 +203,9 @@ p {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+  .segmented-label {
+    transition: none;
   }
 }
 

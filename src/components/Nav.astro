@@ -2,21 +2,21 @@
 import { SITE, LINKS } from "../data/site";
 
 const sections = [
-  { id: "work", label: "work" },
-  { id: "experience", label: "experience" },
-  { id: "skills", label: "skills" },
-  { id: "contact", label: "contact" },
+  { id: "work", label: "Work" },
+  { id: "experience", label: "Experience" },
+  { id: "skills", label: "Stack" },
+  { id: "contact", label: "Contact" },
 ];
 ---
 
-<header id="site-nav" class="fixed inset-x-0 top-0 z-40 transition-colors duration-300">
+<header id="site-nav" class="fixed inset-x-0 top-0 z-40">
   <nav
     class="mx-auto flex max-w-5xl items-center justify-between px-6 py-4 md:px-10"
     aria-label="Primary"
   >
     <a
       href="#top"
-      class="font-sans text-[0.95rem] font-semibold tracking-tight text-ink transition-colors hover:text-accent"
+      class="nav-brand font-sans text-[1.0625rem] font-semibold tracking-tight text-ink hover:text-accent"
     >
       {SITE.name}
     </a>
@@ -29,7 +29,7 @@ const sections = [
               <a
                 href={`#${s.id}`}
                 data-nav-link={s.id}
-                class="nav-link font-mono text-[0.8125rem] font-medium text-muted transition-colors hover:text-ink"
+                class="nav-link font-mono text-sm font-medium text-muted hover:text-ink"
               >
                 {s.label}
               </a>
@@ -42,9 +42,9 @@ const sections = [
         href={LINKS.resume}
         target="_blank"
         rel="noopener"
-        class="nav-link hidden font-mono text-[0.8125rem] font-medium text-muted transition-colors hover:text-ink md:inline-flex md:items-center md:gap-1"
+        class="nav-link hidden font-mono text-sm font-medium text-muted hover:text-ink md:inline-flex md:items-center md:gap-1"
       >
-        resume
+        Résumé
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
           <path d="M7 17L17 7M17 7H7M17 7V17" />
         </svg>
@@ -54,7 +54,7 @@ const sections = [
         id="theme-toggle"
         type="button"
         aria-label="Toggle color theme"
-        class="grid size-8 place-items-center rounded-full text-muted transition-colors hover:text-ink"
+        class="nav-icon-btn grid size-8 place-items-center rounded-full text-muted hover:text-ink"
       >
         <svg class="theme-icon-light size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <circle cx="12" cy="12" r="4" />
@@ -71,7 +71,7 @@ const sections = [
         aria-expanded="false"
         aria-controls="mobile-menu"
         aria-label="Open menu"
-        class="grid size-8 place-items-center rounded-full text-muted transition-colors hover:text-ink md:hidden"
+        class="nav-icon-btn grid size-8 place-items-center rounded-full text-muted hover:text-ink md:hidden"
       >
         <svg class="menu-icon-open size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <path d="M4 9h16M4 15h16" />
@@ -92,7 +92,7 @@ const sections = [
             <a
               href={`#${s.id}`}
               data-mobile-link
-              class="block border-b border-line py-4 font-mono text-[0.9375rem] font-medium text-ink"
+              class="block border-b border-line py-4 font-mono text-body font-medium text-ink"
             >
               {s.label}
             </a>
@@ -105,9 +105,9 @@ const sections = [
           target="_blank"
           rel="noopener"
           data-mobile-link
-          class="flex items-center gap-1.5 py-4 font-mono text-[0.9375rem] font-medium text-ink"
+          class="flex items-center gap-1.5 py-4 font-mono text-body font-medium text-ink"
         >
-          resume
+          Résumé
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
             <path d="M7 17L17 7M17 7H7M17 7V17" />
           </svg>
@@ -119,23 +119,33 @@ const sections = [
 
 <style>
   #site-nav {
-    background: color-mix(in oklab, var(--paper) 100%, transparent);
+    background-color: transparent;
+    border-bottom: 1px solid transparent;
+    transition:
+      background-color 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.24s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  /* Hairline + subtle backdrop appear only once scrolled past the hero. */
+  /* Hairline and subtle backdrop appear only once scrolled past y = 0. */
   #site-nav.scrolled {
-    background: color-mix(in oklab, var(--paper) 82%, transparent);
-    border-bottom: 1px solid var(--line);
+    background-color: color-mix(in oklab, var(--paper) 84%, transparent);
+    border-bottom-color: var(--line);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
   }
   /* Open menu always needs solid ground, scrolled or not. */
   #site-nav.menu-open {
-    background: var(--paper);
-    border-bottom: 1px solid var(--line);
+    background-color: var(--paper);
+    border-bottom-color: var(--line);
+  }
+
+  .nav-brand,
+  .nav-link,
+  .nav-icon-btn {
+    transition: color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   /* Theme icon is CSS-driven off [data-theme], which the no-FOUC script
-     sets before first paint — so the correct icon renders immediately. */
+     sets before first paint so the correct icon renders immediately. */
   .theme-icon-dark {
     display: none;
   }
@@ -169,6 +179,10 @@ const sections = [
   }
 
   @media (prefers-reduced-motion: reduce) {
+    #site-nav,
+    .nav-brand,
+    .nav-link,
+    .nav-icon-btn,
     .nav-link::after {
       transition: none;
     }
@@ -185,7 +199,7 @@ const sections = [
   function applyTheme(theme: string) {
     root.setAttribute("data-theme", theme);
     // Keep the browser chrome color in step with the --paper token
-    themeMeta?.setAttribute("content", theme === "dark" ? "#0a0a0a" : "#ffffff");
+    themeMeta?.setAttribute("content", theme === "dark" ? "#131313" : "#ffffff");
     toggle?.setAttribute("aria-pressed", String(theme === "dark"));
   }
   toggle?.setAttribute(

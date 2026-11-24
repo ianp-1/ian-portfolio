@@ -2,7 +2,7 @@ export const SITE = {
   name: "Ian Pang",
   role: "Software Engineer",
   tagline:
-    "Computer Science student with a passion for building scalable systems, AI/ML applications, and intuitive user experiences.",
+    "Computer science at Purdue. Building distributed systems, applied ML, and fast interfaces.",
   location: "Boston, MA",
   email: "ipang@purdue.edu",
 };
@@ -21,11 +21,11 @@ export const SKILLS: { group: string; items: string[] }[] = [
     items: ["Python", "C / C++", "TypeScript", "Java", "SwiftUI"],
   },
   {
-    group: "ML / Systems",
+    group: "ML and systems",
     items: ["PyTorch", "OpenCV", "CoreML", "YOLO", "LangGraph"],
   },
   {
-    group: "Backend / Infra",
+    group: "Backend and infra",
     items: ["Node.js", "FastAPI", "Flask", "PostgreSQL", "Docker", "GCP"],
   },
 ];

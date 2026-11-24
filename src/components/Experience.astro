@@ -13,17 +13,17 @@ const experience = (await getCollection("experience")).sort(
       experience.map((entry) => {
         const { company, role, period, highlights } = entry.data;
         return (
-          <li class="reveal grid grid-cols-1 gap-x-10 gap-y-3 border-b border-line py-8 last:border-b-0 md:grid-cols-[20ch_1fr] md:items-baseline">
-            <span class="font-mono text-[0.8125rem] text-muted">{period}</span>
+          <li class="exp-row reveal relative grid grid-cols-1 gap-x-10 gap-y-3 border-b border-line py-8 pl-4 last:border-b-0 md:grid-cols-[22ch_1fr] md:items-baseline md:pl-5">
+            <span class="font-mono text-sm tabular-nums text-muted">{period}</span>
             <div>
-              <h3 class="font-sans text-[1.125rem] font-medium leading-snug tracking-[-0.01em] text-ink">
+              <h3 class="font-sans text-body font-semibold leading-snug tracking-[-0.01em] text-ink">
                 {role}
               </h3>
-              <p class="mt-1 font-sans text-[0.95rem] text-muted">{company}</p>
+              <p class="mt-1 font-sans text-body font-medium text-muted">{company}</p>
               <ul class="mt-5 flex flex-col gap-2.5">
                 {highlights.map((h) => (
-                  <li class="flex gap-3 font-sans text-[0.95rem] leading-relaxed text-muted">
-                    {/* 0.78em = optical center of the first line box (1.625 line-height) */}
+                  <li class="flex gap-3 font-sans text-body leading-relaxed text-muted">
+                    {/* 0.78em = optical center of the first line box */}
                     <span aria-hidden="true" class="mt-[0.78em] h-px w-3 shrink-0 bg-line" />
                     <span class="max-w-[62ch]">{h}</span>
                   </li>
@@ -36,3 +36,33 @@ const experience = (await getCollection("experience")).sort(
     }
   </ol>
 </Section>
+
+<style>
+  .exp-row::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 2rem;
+    bottom: 2rem;
+    width: 2px;
+    background: var(--accent);
+    transform: scaleY(0);
+    transform-origin: top center;
+    opacity: 0;
+    transition:
+      transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 0.2s ease;
+  }
+  .exp-row:hover::before,
+  .exp-row:focus-within::before {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .exp-row::before {
+      transition: opacity 0.16s ease;
+      transform: none;
+    }
+  }
+</style>

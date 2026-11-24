@@ -4,15 +4,20 @@ const year = 2026;
 ---
 
 <footer class="mx-auto max-w-5xl px-6 pb-10 md:px-10">
-  <div class="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6">
-    <p class="font-mono text-[0.75rem] text-muted">
-      © {year} {SITE.name}
-    </p>
+  <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-line pt-6">
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-1">
+      <p class="font-mono text-sm text-muted">
+        © {year} {SITE.name}
+      </p>
+      <p class="font-mono text-sm text-muted">
+        {SITE.location}
+      </p>
+    </div>
     <a
       href="#top"
-      class="font-mono text-[0.75rem] text-muted transition-colors hover:text-ink"
+      class="font-mono text-sm text-muted transition-colors hover:text-ink"
     >
-      back to top ↑
+      Back to top ↑
     </a>
   </div>
 </footer>

@@ -9,13 +9,19 @@ const socials = [
 ---
 
 <section id="contact" class="mx-auto max-w-5xl scroll-mt-24 px-6 py-24 md:px-10 md:py-32">
-  <h2 class="max-w-2xl font-sans text-[clamp(2rem,5vw,3.25rem)] font-semibold leading-[1.05] tracking-[-0.03em] text-ink">
+  <canvas
+    id="horizon-ascii-canvas"
+    class="mb-10 block h-16 w-full"
+    aria-hidden="true"
+  ></canvas>
+
+  <h2 class="max-w-2xl font-sans text-heading font-semibold leading-[1.1] tracking-[-0.02em] text-ink">
     Let's build something.
   </h2>
 
   <a
     href={LINKS.email}
-    class="email-link group mt-8 inline-flex items-center gap-3 font-sans text-[clamp(1.25rem,3.5vw,2rem)] font-medium tracking-[-0.02em] text-ink"
+    class="email-link group mt-8 inline-flex items-center gap-3 font-sans text-heading font-medium tracking-[-0.02em] text-ink"
   >
     <span class="email-text">{SITE.email}</span>
     <span class="email-arrow text-accent" aria-hidden="true">
@@ -25,25 +31,45 @@ const socials = [
     </span>
   </a>
 
-  <div class="mt-10 flex flex-wrap gap-x-6 gap-y-3">
-    {
-      socials.map((s) => (
-        <a
-          href={s.href}
-          target={s.external ? "_blank" : undefined}
-          rel={s.external ? "noopener" : undefined}
-          class="link-underline font-mono text-[0.8125rem] font-medium text-muted transition-colors hover:text-ink"
-        >
-          {s.label}
-        </a>
-      ))
-    }
+  <div class="mt-10 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3">
+    <div class="flex flex-wrap gap-x-6 gap-y-3">
+      {
+        socials.map((s) => (
+          <a
+            href={s.href}
+            target={s.external ? "_blank" : undefined}
+            rel={s.external ? "noopener" : undefined}
+            class="link-underline font-mono text-sm font-medium text-muted transition-colors hover:text-ink"
+          >
+            {s.label}
+          </a>
+        ))
+      }
+    </div>
+    <p class="font-mono text-sm text-muted">
+      {SITE.location}
+    </p>
   </div>
 </section>
+
+<script>
+  import { mountHorizonAscii } from "../lib/project-ascii";
+
+  const canvas = document.getElementById("horizon-ascii-canvas");
+  if (canvas instanceof HTMLCanvasElement) {
+    try {
+      const handle = mountHorizonAscii(canvas);
+      window.addEventListener("pagehide", () => handle.destroy(), { once: true });
+    } catch {
+      // Keep contact section usable if canvas initialization fails.
+    }
+  }
+</script>
 
 <style>
   .email-text {
     position: relative;
+    transition: color 0.18s ease;
   }
   .email-text::after {
     content: "";

@@ -1,5 +1,5 @@
 ---
-// Custom cursor — the site's one indulgence, built from the same accent voice.
+// Custom cursor: the site's one indulgence, built from the same accent voice.
 // A small dot tracks the pointer; a hairline ring blooms only over
 // interactive elements. Activates exclusively for fine pointers with motion
 // allowed; everyone else keeps the native cursor untouched.
@@ -47,6 +47,13 @@
   :global(html.custom-cursor *) {
     cursor: none;
   }
+  @media (prefers-reduced-motion: reduce) {
+    #cursor-dot,
+    #cursor-ring {
+      display: none;
+      transition: none;
+    }
+  }
 </style>
 
 <script>
@@ -71,12 +78,13 @@
     let pendingTarget: Element | null = null;
     let needsHitTest = false;
 
-    const INTERACTIVE = "a, button, [role='button'], summary, label";
+    const INTERACTIVE =
+      "a, button, [role='button'], summary, label, input, [role='switch'], [role='radio']";
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
     function frame() {
       if (needsHitTest) {
-        // Scrolling moves the page under a stationary pointer — recheck
+        // Scrolling moves the page under a stationary pointer; recheck
         // what's beneath it so the ring doesn't linger on a link.
         pendingTarget = document.elementFromPoint(tx, ty);
         needsHitTest = false;
@@ -98,7 +106,7 @@
       dot!.style.transform = `translate3d(${dx}px, ${dy}px, 0) translate(-50%, -50%) scale(${ds})`;
       ring!.style.transform = `translate3d(${rx}px, ${ry}px, 0) translate(-50%, -50%) scale(${rs})`;
 
-      // Everything converged and no work queued → let the loop sleep until
+      // Everything converged and no work queued -> let the loop sleep until
       // the next input event wakes it. No idle 60fps burn.
       const settled =
         Math.abs(tx - dx) + Math.abs(ty - dy) < 0.1 &&
@@ -130,7 +138,10 @@
       needsHitTest = true;
       wake();
     };
-    const onLeave = () => root.classList.remove("cursor-on");
+    const onLeave = () => {
+      pressed = false;
+      root.classList.remove("cursor-on");
+    };
     const onDown = () => {
       pressed = true;
       wake();
@@ -147,7 +158,8 @@
       dy = ry = ty;
       document.addEventListener("mousemove", onMove, { passive: true });
       document.addEventListener("mousedown", onDown, { passive: true });
-      document.addEventListener("mouseup", onUp, { passive: true });
+      window.addEventListener("mouseup", onUp, { passive: true });
+      window.addEventListener("blur", onUp, { passive: true });
       document.documentElement.addEventListener("mouseleave", onLeave);
       window.addEventListener("scroll", onScroll, { passive: true });
       wake();
@@ -157,7 +169,8 @@
       root.classList.remove("custom-cursor", "cursor-on", "cursor-link");
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("mouseup", onUp);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("blur", onUp);
       document.documentElement.removeEventListener("mouseleave", onLeave);
       window.removeEventListener("scroll", onScroll);
       cancelAnimationFrame(raf);
