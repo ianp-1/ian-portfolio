@@ -2,7 +2,7 @@ export const SITE = {
   name: "Ian Pang",
   role: "Software Engineer",
   tagline:
-    "Computer science at Purdue. Building distributed systems, applied ML, and fast interfaces.",
+    "Computer science at Purdue. Distributed systems, applied ML, and 120 FPS interfaces.",
   location: "Boston, MA",
   email: "ipang@purdue.edu",
 };

@@ -15,7 +15,7 @@ const {
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -25,7 +25,7 @@ const {
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
-    <meta id="meta-theme-color" name="theme-color" content="#ffffff" />
+    <meta id="meta-theme-color" name="theme-color" content="#080808" />
 
     <!-- Preload every weight the first viewport renders -->
     <link rel="preload" href="/fonts/general-sans-400.woff2" as="font" type="font/woff2" crossorigin />
@@ -34,29 +34,68 @@ const {
     <link rel="preload" href="/fonts/geist-mono-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/geist-mono-500.woff2" as="font" type="font/woff2" crossorigin />
 
-    <!-- No-FOUC theme: resolve before first paint -->
+    <!-- No-FOUC theme: default to Obsidian Ink ("dark") before first paint -->
     <script is:inline>
       (function () {
-        var theme = "light";
+        var theme = "dark";
         try {
           var stored = localStorage.getItem("theme");
-          theme =
-            stored === "dark" || stored === "light"
-              ? stored
-              : window.matchMedia("(prefers-color-scheme: dark)").matches
-                ? "dark"
-                : "light";
+          if (stored === "dark" || stored === "light") {
+            theme = stored;
+          }
         } catch (e) {}
         document.documentElement.setAttribute("data-theme", theme);
         var meta = document.getElementById("meta-theme-color");
-        // #131313 / #ffffff mirror the --paper token in each theme
-        if (meta) meta.setAttribute("content", theme === "dark" ? "#131313" : "#ffffff");
+        if (meta) meta.setAttribute("content", theme === "dark" ? "#080808" : "#FAFAFA");
         document.documentElement.classList.add("js");
       })();
     </script>
   </head>
   <body>
     <slot />
+    <canvas
+      id="xray-overlay-canvas"
+      class="pointer-events-none fixed inset-0 z-30 h-full w-full"
+      aria-hidden="true"
+    ></canvas>
     <Cursor />
+
+    <script>
+      import { mountXrayMode, type XrayHandle } from "../lib/xray-mode";
+
+      const xrayCanvas = document.getElementById("xray-overlay-canvas");
+      let handle: XrayHandle | null = null;
+
+      if (xrayCanvas instanceof HTMLCanvasElement) {
+        try {
+          handle = mountXrayMode(xrayCanvas, (enabled) => {
+            window.dispatchEvent(
+              new CustomEvent("portfolio:xray-change", {
+                detail: { enabled },
+              }),
+            );
+          });
+        } catch {
+          // Keep page functional if overlay setup fails.
+        }
+      }
+
+      const onXrayToggle = () => {
+        handle?.toggle();
+      };
+      window.addEventListener("portfolio:xray-toggle", onXrayToggle);
+
+      window.addEventListener(
+        "pagehide",
+        (event) => {
+          if (!event.persisted) {
+            window.removeEventListener("portfolio:xray-toggle", onXrayToggle);
+            handle?.destroy();
+            handle = null;
+          }
+        },
+        { once: true },
+      );
+    </script>
   </body>
 </html>

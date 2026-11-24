@@ -40,16 +40,18 @@
 /* ── Dark-mode variant driven by [data-theme] ────────────────────── */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* ── Semantic tokens (OKLCH). Hue lives only in the accent. ──────── */
+/* ── Semantic tokens: Gallery Paper (light) & Obsidian Ink (dark) ── */
 :root {
-  --paper: oklch(1 0 0);
-  --ink: oklch(0.2 0.012 150);
-  --surface: oklch(0.975 0.004 150);
-  --muted: oklch(0.48 0.012 150);
-  --line: oklch(0.9 0.006 150);
-  --accent: oklch(0.52 0.13 132);
-  --accent-strong: oklch(0.46 0.12 132);
-  --hover-shadow: 0 6px 24px -8px oklch(0.2 0.02 150 / 0.18);
+  --paper: #FAFAFA;
+  --surface: #F2F2F2;
+  --surface-2: #E6E6E6;
+  --ink: #0A0A0A;
+  --muted: #5C5C5C;
+  --line: #E0E0E0;
+  --accent: #0A0A0A;
+  --accent-ink: #FAFAFA;
+  --accent-secondary: #525252;
+  --hover-shadow: 0 10px 28px -12px rgba(10, 10, 10, 0.12);
 
   /* Strict 3-step body typography scale */
   --text-heading: clamp(1.75rem, 3.2vw, 2.5rem);
@@ -58,14 +60,16 @@
 }
 
 :root[data-theme="dark"] {
-  --paper: oklch(0.187 0 0);
-  --ink: oklch(0.93 0.005 150);
-  --surface: oklch(0.225 0.004 150);
-  --muted: oklch(0.66 0.01 150);
-  --line: oklch(0.27 0.006 150);
-  --accent: oklch(0.8 0.14 134);
-  --accent-strong: oklch(0.86 0.13 134);
-  --hover-shadow: 0 8px 28px -8px oklch(0 0 0 / 0.55);
+  --paper: #080808;
+  --surface: #101010;
+  --surface-2: #181818;
+  --ink: #F5F5F5;
+  --muted: #8A8A8A;
+  --line: #222222;
+  --accent: #FFFFFF;
+  --accent-ink: #080808;
+  --accent-secondary: #B0B0B0;
+  --hover-shadow: 0 14px 36px -12px rgba(0, 0, 0, 0.72);
 }
 
 /* ── Map tokens into Tailwind's theme (utilities resolve live) ───── */
@@ -73,12 +77,14 @@
   --font-sans: "General Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
   --color-paper: var(--paper);
-  --color-ink: var(--ink);
   --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-line: var(--line);
   --color-accent: var(--accent);
-  --color-accent-strong: var(--accent-strong);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-secondary: var(--accent-secondary);
 }
 
 @utility text-heading {
@@ -112,9 +118,24 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+html[data-xray="on"] body {
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in oklab, var(--ink) 7%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--ink) 7%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 48px 48px;
+}
+
 ::selection {
   background: var(--accent);
-  color: var(--paper);
+  color: var(--accent-ink);
 }
 
 :focus-visible {
@@ -131,7 +152,7 @@ p {
   text-wrap: pretty;
 }
 
-/* ── Segmented radio controls & switch (ASCII dock & specimen switcher) ── */
+/* ── Segmented radio controls (Hero fluid dock & specimen switcher) ─ */
 .segmented-group {
   display: inline-flex;
   flex-wrap: wrap;
@@ -140,7 +161,7 @@ p {
   padding: 3px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background-color: color-mix(in oklab, var(--surface) 82%, transparent);
+  background-color: color-mix(in oklab, var(--surface) 88%, transparent);
 }
 
 .segmented-option {
@@ -181,12 +202,12 @@ p {
 
 .segmented-option:hover .segmented-input:not(:checked) + .segmented-label {
   color: var(--ink);
-  background-color: color-mix(in oklab, var(--ink) 6%, transparent);
+  background-color: color-mix(in oklab, var(--ink) 7%, transparent);
 }
 
 .segmented-input:checked + .segmented-label {
-  background-color: var(--ink);
-  color: var(--paper);
+  background-color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .segmented-input:focus-visible + .segmented-label {
@@ -204,6 +225,7 @@ p {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+  body,
   .segmented-label {
     transition: none;
   }

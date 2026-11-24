@@ -11,7 +11,8 @@ const socials = [
 <section id="contact" class="mx-auto max-w-5xl scroll-mt-24 px-6 py-24 md:px-10 md:py-32">
   <canvas
     id="horizon-ascii-canvas"
-    class="mb-10 block h-16 w-full"
+    class="mb-10 block h-20 w-full select-none"
+    style="touch-action: pan-y;"
     aria-hidden="true"
   ></canvas>
 
@@ -38,8 +39,8 @@ const socials = [
           <a
             href={s.href}
             target={s.external ? "_blank" : undefined}
-            rel={s.external ? "noopener" : undefined}
-            class="link-underline font-mono text-sm font-medium text-muted transition-colors hover:text-ink"
+            rel={s.external ? "noopener noreferrer" : undefined}
+            class="link-underline font-mono text-sm font-medium text-muted hover:text-ink"
           >
             {s.label}
           </a>
@@ -82,25 +83,31 @@ const socials = [
     clip-path: inset(0 100% 0 0);
     transition: clip-path 0.36s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .email-link:hover .email-text {
+  .email-link:hover .email-text,
+  .email-link:focus-visible .email-text {
     color: var(--accent);
   }
-  .email-link:hover .email-text::after {
+  .email-link:hover .email-text::after,
+  .email-link:focus-visible .email-text::after {
     clip-path: inset(0 0 0 0);
   }
 
   .email-arrow {
     opacity: 0;
     transform: translate(-8px, 4px);
-    transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.26s;
+    transition:
+      transform 0.26s cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 0.26s ease;
   }
-  .email-link:hover .email-arrow {
+  .email-link:hover .email-arrow,
+  .email-link:focus-visible .email-arrow {
     opacity: 1;
     transform: translate(0, 0);
   }
 
   .link-underline {
     position: relative;
+    transition: color 0.18s ease;
   }
   .link-underline::after {
     content: "";
@@ -113,15 +120,18 @@ const socials = [
     clip-path: inset(0 100% 0 0);
     transition: clip-path 0.24s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .link-underline:hover::after {
+  .link-underline:hover::after,
+  .link-underline:focus-visible::after {
     clip-path: inset(0 0 0 0);
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .email-text,
     .email-text::after,
     .email-arrow,
+    .link-underline,
     .link-underline::after {
-      transition: none;
+      transition: color 0.18s ease;
     }
     .email-arrow {
       opacity: 1;

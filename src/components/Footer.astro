@@ -15,9 +15,21 @@ const year = 2026;
     </div>
     <a
       href="#top"
-      class="font-mono text-sm text-muted transition-colors hover:text-ink"
+      class="footer-top-link font-mono text-sm text-muted hover:text-ink"
     >
       Back to top ↑
     </a>
   </div>
 </footer>
+
+<style>
+  .footer-top-link {
+    transition: color 0.18s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .footer-top-link {
+      transition: none;
+    }
+  }
+</style>

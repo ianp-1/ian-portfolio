@@ -1,8 +1,6 @@
 ---
-// Custom cursor: the site's one indulgence, built from the same accent voice.
-// A small dot tracks the pointer; a hairline ring blooms only over
-// interactive elements. Activates exclusively for fine pointers with motion
-// allowed; everyone else keeps the native cursor untouched.
+// Minimal monochrome pointer dot and hairline ring: active exclusively for
+// fine pointers when reduced motion is not requested.
 ---
 
 <div id="cursor-dot" aria-hidden="true"></div>
@@ -16,25 +14,28 @@
     top: 0;
     z-index: 50; /* above nav (40); nothing sits higher */
     pointer-events: none;
-    border-radius: 999px;
     opacity: 0;
-    transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   }
   #cursor-dot {
-    width: 7px;
-    height: 7px;
-    background: var(--accent);
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--ink);
   }
   #cursor-ring {
-    width: 36px;
-    height: 36px;
-    border: 1.5px solid color-mix(in oklab, var(--accent) 65%, transparent);
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in oklab, var(--ink) 45%, transparent);
   }
+
   /* Compositor hint only while the custom cursor is actually live */
   :global(html.custom-cursor) #cursor-dot,
   :global(html.custom-cursor) #cursor-ring {
     will-change: transform;
   }
+
   /* Visible only while the custom cursor is live and the pointer is on-page */
   :global(html.custom-cursor.cursor-on) #cursor-dot {
     opacity: 1;
@@ -42,11 +43,13 @@
   :global(html.custom-cursor.cursor-on.cursor-link) #cursor-ring {
     opacity: 1;
   }
+
   /* Hide the native cursor only when we're drawing our own */
   :global(html.custom-cursor),
   :global(html.custom-cursor *) {
     cursor: none;
   }
+
   @media (prefers-reduced-motion: reduce) {
     #cursor-dot,
     #cursor-ring {
@@ -79,13 +82,11 @@
     let needsHitTest = false;
 
     const INTERACTIVE =
-      "a, button, [role='button'], summary, label, input, [role='switch'], [role='radio']";
+      "a, button, [role='button'], summary, label, input, [role='radio']";
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
     function frame() {
       if (needsHitTest) {
-        // Scrolling moves the page under a stationary pointer; recheck
-        // what's beneath it so the ring doesn't linger on a link.
         pendingTarget = document.elementFromPoint(tx, ty);
         needsHitTest = false;
       }
@@ -99,15 +100,14 @@
       dy = lerp(dy, ty, 0.6);
       rx = lerp(rx, tx, 0.16);
       ry = lerp(ry, ty, 0.16);
-      const dTarget = overLink ? 0.5 : 1;
+      const dTarget = overLink ? 0.55 : 1;
       const rTarget = overLink ? (pressed ? 0.85 : 1) : 0.6;
       ds = lerp(ds, dTarget, 0.22);
       rs = lerp(rs, rTarget, 0.18);
+
       dot!.style.transform = `translate3d(${dx}px, ${dy}px, 0) translate(-50%, -50%) scale(${ds})`;
       ring!.style.transform = `translate3d(${rx}px, ${ry}px, 0) translate(-50%, -50%) scale(${rs})`;
 
-      // Everything converged and no work queued -> let the loop sleep until
-      // the next input event wakes it. No idle 60fps burn.
       const settled =
         Math.abs(tx - dx) + Math.abs(ty - dy) < 0.1 &&
         Math.abs(tx - rx) + Math.abs(ty - ry) < 0.1 &&
@@ -153,7 +153,6 @@
 
     function enable() {
       root.classList.add("custom-cursor");
-      // Snap into place so the first frames don't streak across the page
       dx = rx = tx;
       dy = ry = ty;
       document.addEventListener("mousemove", onMove, { passive: true });

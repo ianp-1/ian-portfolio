@@ -24,6 +24,19 @@ import { SKILLS } from "../data/site";
   </div>
 </Section>
 
+<script>
+  import { playTick } from "../lib/synth-audio";
+
+  const skillItems = document.querySelectorAll<HTMLElement>(".skill-item");
+  skillItems.forEach((item) => {
+    item.addEventListener("pointerenter", (e) => {
+      if (e.pointerType === "mouse") {
+        playTick();
+      }
+    });
+  });
+</script>
+
 <style>
   /* Slide + tick built from transform only: no layout-property animation. */
   .skill-item {

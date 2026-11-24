@@ -8,11 +8,13 @@ export interface ThemeRgb {
 
 export interface ThemeColors {
   paper: ThemeRgb;
-  ink: ThemeRgb;
   surface: ThemeRgb;
+  ink: ThemeRgb;
   muted: ThemeRgb;
   line: ThemeRgb;
   accent: ThemeRgb;
+  accentInk: ThemeRgb;
+  accentSecondary: ThemeRgb;
   isDark: boolean;
 }
 
@@ -50,21 +52,25 @@ export const CHARSET_FONT_STACK =
   '"Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
 
 const LIGHT_DEFAULTS: Record<keyof Omit<ThemeColors, "isDark">, string> = {
-  paper: "rgb(255, 255, 255)",
-  ink: "rgb(28, 31, 28)",
-  surface: "rgb(246, 247, 245)",
-  muted: "rgb(110, 113, 108)",
-  line: "rgb(228, 230, 225)",
-  accent: "rgb(94, 127, 58)",
+  paper: "rgb(250, 250, 250)",
+  surface: "rgb(242, 242, 242)",
+  ink: "rgb(10, 10, 10)",
+  muted: "rgb(92, 92, 92)",
+  line: "rgb(224, 224, 224)",
+  accent: "rgb(10, 10, 10)",
+  accentInk: "rgb(250, 250, 250)",
+  accentSecondary: "rgb(82, 82, 82)",
 };
 
 const DARK_DEFAULTS: Record<keyof Omit<ThemeColors, "isDark">, string> = {
-  paper: "rgb(19, 19, 19)",
-  ink: "rgb(236, 238, 233)",
-  surface: "rgb(28, 29, 27)",
-  muted: "rgb(154, 157, 151)",
-  line: "rgb(44, 46, 42)",
-  accent: "rgb(147, 193, 95)",
+  paper: "rgb(8, 8, 8)",
+  surface: "rgb(16, 16, 16)",
+  ink: "rgb(245, 245, 245)",
+  muted: "rgb(138, 138, 138)",
+  line: "rgb(34, 34, 34)",
+  accent: "rgb(255, 255, 255)",
+  accentInk: "rgb(8, 8, 8)",
+  accentSecondary: "rgb(176, 176, 176)",
 };
 
 let probeCanvas: HTMLCanvasElement | null = null;
@@ -135,7 +141,8 @@ export function mixRgb(a: ThemeRgb, b: ThemeRgb, t: number): ThemeRgb {
 
 export function resolveThemeColors(): ThemeColors {
   const root = document.documentElement;
-  const isDark = root.getAttribute("data-theme") === "dark";
+  const themeAttr = root.getAttribute("data-theme");
+  const isDark = themeAttr === "dark" || themeAttr === null;
   const defaults = isDark ? DARK_DEFAULTS : LIGHT_DEFAULTS;
   const styles = getComputedStyle(root);
 
@@ -146,11 +153,13 @@ export function resolveThemeColors(): ThemeColors {
 
   return {
     paper: readToken("--paper", defaults.paper),
-    ink: readToken("--ink", defaults.ink),
     surface: readToken("--surface", defaults.surface),
+    ink: readToken("--ink", defaults.ink),
     muted: readToken("--muted", defaults.muted),
     line: readToken("--line", defaults.line),
     accent: readToken("--accent", defaults.accent),
+    accentInk: readToken("--accent-ink", defaults.accentInk),
+    accentSecondary: readToken("--accent-secondary", defaults.accentSecondary),
     isDark,
   };
 }

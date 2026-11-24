@@ -11,70 +11,71 @@ import {
   rgbToCss,
   type ThemeColors,
 } from "./ascii-atlas";
-import {
-  FULLSCREEN_VERTEX_SHADER,
-  PASS1_FRAGMENT_SHADER,
-  PASS2_FRAGMENT_SHADER,
-} from "./ascii-shaders";
+import { FULLSCREEN_VERTEX_SHADER, PASS2_FRAGMENT_SHADER } from "./ascii-shaders";
+import { playBurst } from "./synth-audio";
 
-export type AsciiScene = "ferro" | "terrain" | "orbit" | "flow";
+export type HeroFluidMode = "shatter" | "topography" | "vortex";
 export type AsciiCharset = "ascii" | "braille" | "blocks";
 
 export interface HeroAsciiOptions {
   clearElement?: HTMLElement | null;
-  initialScene?: AsciiScene;
+  initialMode?: HeroFluidMode;
   initialCharset?: AsciiCharset;
+  initialText?: string;
 }
 
 export interface HeroAsciiHandle {
-  setScene: (scene: AsciiScene) => void;
+  setMode: (mode: HeroFluidMode) => void;
   setCharset: (charset: AsciiCharset) => void;
-  triggerShockwave: (normX: number, normY: number) => void;
+  setDisplayText: (text: string) => void;
+  resetDisplayText: () => void;
+  triggerBurst: (normX: number, normY: number) => void;
   destroy: () => void;
 }
 
-interface ShockwaveSlot {
+interface ShockRing {
   x: number;
   y: number;
   startMs: number;
   active: boolean;
 }
 
-interface RenderState {
-  timeSec: number;
-  aspect: number;
+interface FluidFrameState {
+  simW: number;
+  simH: number;
   cols: number;
   rows: number;
-  sceneA: number;
-  sceneB: number;
-  sceneBlend: number;
+  aspect: number;
+  mode: HeroFluidMode;
   charset: AsciiCharset;
-  orbitYaw: number;
-  orbitPitch: number;
-  pointerX: number;
-  pointerY: number;
-  pointerVelX: number;
-  pointerVelY: number;
-  pointerActive: number;
-  shockwaves: readonly ShockwaveSlot[];
-  nowMs: number;
   theme: ThemeColors;
   clearRectUv: readonly [number, number, number, number] | null;
   clearRectDom: readonly [number, number, number, number] | null;
+  packedRgba: Uint8Array;
+  ink: Float32Array;
+  energy: Float32Array;
+  velU: Float32Array;
+  velV: Float32Array;
 }
 
 interface EngineBackend {
   uploadAtlas: (atlasCanvas: HTMLCanvasElement) => void;
-  resize: (widthPx: number, heightPx: number, cols: number, rows: number) => void;
-  render: (state: RenderState) => void;
+  resize: (widthPx: number, heightPx: number, simW: number, simH: number) => void;
+  render: (state: FluidFrameState) => void;
   destroy: () => void;
 }
 
-const SCENE_INDEX: Record<AsciiScene, number> = {
-  ferro: 0,
-  terrain: 1,
-  orbit: 2,
-  flow: 3,
+const LANDSCAPE_W = 96;
+const LANDSCAPE_H = 54;
+const SIM_N = LANDSCAPE_W * LANDSCAPE_H;
+const DEFAULT_DISPLAY_TEXT = "IAN PANG";
+const BURST_DURATION_MS = 1150;
+const STATIC_REDUCED_MOTION_SEC = 2.4;
+
+const MODE_INDEX: Record<HeroFluidMode, number> = {
+  shatter: 0,
+  topography: 1,
+  vortex: 2,
 };
 
 const CHARSET_INDEX: Record<AsciiCharset, number> = {
@@ -83,12 +84,392 @@ const CHARSET_INDEX: Record<AsciiCharset, number> = {
   blocks: 2,
 };
 
-const SHOCKWAVE_DURATION_MS = 1400;
-const STATIC_REDUCED_MOTION_TIME_SEC = 2.6;
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
 
 function clamp01(v: number): number {
-  return Math.max(0, Math.min(1, v));
+  return v < 0 ? 0 : v > 1 ? 1 : v;
 }
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = clamp01((x - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+}
+
+// ── 96x54 (5184-cell) Jos Stam Stable-Fluids Navier-Stokes Solver ─────
+
+function setBnd(b: number, x: Float32Array, simW: number, simH: number): void {
+  for (let ix = 1; ix < simW - 1; ix++) {
+    x[ix] = b === 2 ? -(x[simW + ix] ?? 0) : (x[simW + ix] ?? 0);
+    const bot = (simH - 1) * simW + ix;
+    const botIn = (simH - 2) * simW + ix;
+    x[bot] = b === 2 ? -(x[botIn] ?? 0) : (x[botIn] ?? 0);
+  }
+  for (let iy = 1; iy < simH - 1; iy++) {
+    const left = iy * simW;
+    x[left] = b === 1 ? -(x[left + 1] ?? 0) : (x[left + 1] ?? 0);
+    const right = iy * simW + (simW - 1);
+    x[right] = b === 1 ? -(x[right - 1] ?? 0) : (x[right - 1] ?? 0);
+  }
+  x[0] = 0.5 * ((x[1] ?? 0) + (x[simW] ?? 0));
+  x[simW - 1] = 0.5 * ((x[simW - 2] ?? 0) + (x[2 * simW - 1] ?? 0));
+  const bl = (simH - 1) * simW;
+  x[bl] = 0.5 * ((x[bl + 1] ?? 0) + (x[bl - simW] ?? 0));
+  const br = simW * simH - 1;
+  x[br] = 0.5 * ((x[br - 1] ?? 0) + (x[br - simW] ?? 0));
+}
+
+function project(
+  u: Float32Array,
+  v: Float32Array,
+  p: Float32Array,
+  div: Float32Array,
+  simW: number,
+  simH: number,
+): void {
+  for (let y = 1; y < simH - 1; y++) {
+    const row = y * simW;
+    for (let x = 1; x < simW - 1; x++) {
+      const i = row + x;
+      div[i] =
+        -0.5 *
+        ((u[i + 1] ?? 0) - (u[i - 1] ?? 0) + (v[i + simW] ?? 0) - (v[i - simW] ?? 0));
+      p[i] = 0;
+    }
+  }
+  setBnd(0, div, simW, simH);
+  setBnd(0, p, simW, simH);
+
+  for (let iter = 0; iter < 14; iter++) {
+    for (let y = 1; y < simH - 1; y++) {
+      const row = y * simW;
+      for (let x = 1; x < simW - 1; x++) {
+        const i = row + x;
+        p[i] =
+          ((div[i] ?? 0) +
+            (p[i - 1] ?? 0) +
+            (p[i + 1] ?? 0) +
+            (p[i - simW] ?? 0) +
+            (p[i + simW] ?? 0)) *
+          0.25;
+      }
+    }
+    setBnd(0, p, simW, simH);
+  }
+
+  for (let y = 1; y < simH - 1; y++) {
+    const row = y * simW;
+    for (let x = 1; x < simW - 1; x++) {
+      const i = row + x;
+      u[i] = (u[i] ?? 0) - 0.5 * ((p[i + 1] ?? 0) - (p[i - 1] ?? 0));
+      v[i] = (v[i] ?? 0) - 0.5 * ((p[i + simW] ?? 0) - (p[i - simW] ?? 0));
+    }
+  }
+  setBnd(1, u, simW, simH);
+  setBnd(2, v, simW, simH);
+}
+
+function applyVorticityConfinement(
+  u: Float32Array,
+  v: Float32Array,
+  curl: Float32Array,
+  simW: number,
+  simH: number,
+  dt: number,
+  eps: number,
+): void {
+  for (let y = 1; y < simH - 1; y++) {
+    const row = y * simW;
+    for (let x = 1; x < simW - 1; x++) {
+      const i = row + x;
+      const dvdx = 0.5 * ((v[i + 1] ?? 0) - (v[i - 1] ?? 0));
+      const dudy = 0.5 * ((u[i + simW] ?? 0) - (u[i - simW] ?? 0));
+      curl[i] = dvdx - dudy;
+    }
+  }
+
+  for (let y = 1; y < simH - 1; y++) {
+    const row = y * simW;
+    for (let x = 1; x < simW - 1; x++) {
+      const i = row + x;
+      const cL = Math.abs(curl[i - 1] ?? 0);
+      const cR = Math.abs(curl[i + 1] ?? 0);
+      const cT = Math.abs(curl[i - simW] ?? 0);
+      const cB = Math.abs(curl[i + simW] ?? 0);
+      let dx = 0.5 * (cR - cL);
+      let dy = 0.5 * (cB - cT);
+      const len = Math.hypot(dx, dy);
+      if (len > 1e-5) {
+        dx /= len;
+        dy /= len;
+        const c = curl[i] ?? 0;
+        u[i] = (u[i] ?? 0) + dt * eps * (dy * c);
+        v[i] = (v[i] ?? 0) + dt * eps * (-dx * c);
+      }
+    }
+  }
+}
+
+function advect(
+  b: number,
+  d: Float32Array,
+  d0: Float32Array,
+  u: Float32Array,
+  v: Float32Array,
+  simW: number,
+  simH: number,
+  dt: number,
+): void {
+  const maxX = simW - 1.5;
+  const maxY = simH - 1.5;
+
+  for (let y = 1; y < simH - 1; y++) {
+    const row = y * simW;
+    for (let x = 1; x < simW - 1; x++) {
+      const i = row + x;
+      const bx = clamp(x - dt * (u[i] ?? 0), 0.5, maxX);
+      const by = clamp(y - dt * (v[i] ?? 0), 0.5, maxY);
+
+      const x0 = Math.floor(bx);
+      const y0 = Math.floor(by);
+      const x1 = x0 + 1;
+      const y1 = y0 + 1;
+      const sx = bx - x0;
+      const sy = by - y0;
+
+      const idx00 = y0 * simW + x0;
+      const idx10 = y0 * simW + x1;
+      const idx01 = y1 * simW + x0;
+      const idx11 = y1 * simW + x1;
+
+      const top = (d0[idx00] ?? 0) * (1 - sx) + (d0[idx10] ?? 0) * sx;
+      const bot = (d0[idx01] ?? 0) * (1 - sx) + (d0[idx11] ?? 0) * sx;
+      d[i] = top * (1 - sy) + bot * sy;
+    }
+  }
+  setBnd(b, d, simW, simH);
+}
+
+// ── Typography Mask Rasterization ─────────────────────────────────────
+
+function splitTwoLines(text: string): [string, string] | null {
+  const clean = text.trim();
+  if (clean.length < 4) return null;
+
+  const spaces: number[] = [];
+  for (let i = 0; i < clean.length; i++) {
+    if (clean[i] === " ") spaces.push(i);
+  }
+  if (spaces.length > 0) {
+    const mid = clean.length * 0.5;
+    let best = spaces[0]!;
+    let bestDist = Math.abs(best - mid);
+    for (let i = 1; i < spaces.length; i++) {
+      const idx = spaces[i]!;
+      const dist = Math.abs(idx - mid);
+      if (dist < bestDist) {
+        best = idx;
+        bestDist = dist;
+      }
+    }
+    const left = clean.slice(0, best).trim();
+    const right = clean.slice(best + 1).trim();
+    if (left.length > 0 && right.length > 0) {
+      return [left, right];
+    }
+  }
+
+  if (clean.length >= 8) {
+    const half = Math.ceil(clean.length * 0.5);
+    return [clean.slice(0, half), clean.slice(half)];
+  }
+  return null;
+}
+
+function measureTrackedWidth(
+  ctx: CanvasRenderingContext2D,
+  line: string,
+  fontSize: number,
+  trackingEm: number,
+): number {
+  const baseW = ctx.measureText(line).width;
+  const chars = Array.from(line);
+  if (chars.length <= 1) return baseW;
+  return baseW + (chars.length - 1) * fontSize * trackingEm;
+}
+
+function drawTrackedLine(
+  ctx: CanvasRenderingContext2D,
+  line: string,
+  centerX: number,
+  centerY: number,
+  fontSize: number,
+  trackingEm: number,
+): void {
+  const chars = Array.from(line);
+  if (chars.length <= 1) {
+    ctx.fillText(line, centerX, centerY);
+    return;
+  }
+  const extraPerGap = fontSize * trackingEm;
+  const widths = chars.map((ch) => ctx.measureText(ch).width);
+  const totalW =
+    widths.reduce((acc, w) => acc + w, 0) + (chars.length - 1) * extraPerGap;
+
+  let cursor = centerX - totalW * 0.5;
+  ctx.textAlign = "left";
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i]!;
+    const w = widths[i] ?? 0;
+    if (ch !== " ") {
+      ctx.fillText(ch, cursor, centerY);
+    }
+    cursor += w + extraPerGap;
+  }
+}
+
+function measureLinesMaxFont(
+  ctx: CanvasRenderingContext2D,
+  lines: readonly string[],
+  safeW: number,
+  safeH: number,
+  weight: number,
+  trackingEm: number,
+): number {
+  const refSize = 100;
+  ctx.font = `${weight} ${refSize}px "General Sans", ui-sans-serif, system-ui, sans-serif`;
+  let maxWidthRatio = 0.01;
+  for (let i = 0; i < lines.length; i++) {
+    const w = measureTrackedWidth(ctx, lines[i]!, refSize, trackingEm);
+    maxWidthRatio = Math.max(maxWidthRatio, w / refSize);
+  }
+  const lineHeightFactor = lines.length > 1 ? 1.24 : 1.0;
+  const maxByWidth = safeW / maxWidthRatio;
+  const maxByHeight = safeH / (lines.length * lineHeightFactor);
+  return Math.max(12, Math.min(maxByWidth, maxByHeight) * 0.94);
+}
+
+function rasterizeTypographyMask(
+  offCanvas: HTMLCanvasElement,
+  text: string,
+  aspect: number,
+  simW: number,
+  simH: number,
+  clearRectDom: readonly [number, number, number, number] | null,
+  outMask: Float32Array,
+  outEdge: Float32Array,
+): number {
+  const safeAspect = clamp(aspect, 0.35, 3.2);
+  const offW = Math.max(384, simW * 4);
+  const offH = Math.max(216, Math.round(offW / safeAspect));
+
+  if (offCanvas.width !== offW || offCanvas.height !== offH) {
+    offCanvas.width = offW;
+    offCanvas.height = offH;
+  }
+
+  const ctx = offCanvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) {
+    outMask.fill(0);
+    outEdge.fill(0);
+    return 0.4;
+  }
+
+  ctx.clearRect(0, 0, offW, offH);
+
+  const normalized = (text.trim().length > 0 ? text.trim() : DEFAULT_DISPLAY_TEXT)
+    .toUpperCase()
+    .slice(0, 20);
+
+  const isPortrait = safeAspect < 0.98;
+  const topFrac = isPortrait ? 0.13 : 0.14;
+  const fallbackBottom = isPortrait ? 0.54 : 0.66;
+  const bottomFrac = clearRectDom
+    ? clamp(clearRectDom[1] - 0.065, 0.42, 0.66)
+    : fallbackBottom;
+
+  const safeW = offW * (isPortrait ? 0.84 : 0.82);
+  const safeTop = offH * topFrac;
+  const safeBottom = offH * bottomFrac;
+  const safeH = Math.max(44, safeBottom - safeTop);
+  const centerY = (safeTop + safeBottom) * 0.5;
+
+  const fontWeight = isPortrait ? 500 : 600;
+  const trackingEm = isPortrait ? 0.08 : 0.075;
+
+  const singleLineText = normalized.replace(/ +/g, "  ");
+  const oneLine: readonly string[] = [singleLineText];
+  const font1 = measureLinesMaxFont(ctx, oneLine, safeW, safeH, fontWeight, trackingEm);
+
+  let chosenLines: readonly string[] = oneLine;
+  let chosenFont = font1;
+
+  const twoLines = splitTwoLines(normalized);
+  if (twoLines) {
+    const font2 = measureLinesMaxFont(ctx, twoLines, safeW, safeH, fontWeight, trackingEm);
+    if (isPortrait || normalized.length > 10 || font2 > font1 * 1.24) {
+      chosenLines = twoLines;
+      chosenFont = font2;
+    }
+  }
+
+  ctx.font = `${fontWeight} ${chosenFont.toFixed(1)}px "General Sans", ui-sans-serif, system-ui, sans-serif`;
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#ffffff";
+
+  const lineStep = chosenFont * 1.24;
+  const startY = centerY - ((chosenLines.length - 1) * lineStep) * 0.5;
+
+  for (let i = 0; i < chosenLines.length; i++) {
+    const line = chosenLines[i]!;
+    const y = startY + i * lineStep;
+    drawTrackedLine(ctx, line, offW * 0.5, y, chosenFont, trackingEm);
+  }
+
+  const pixels = ctx.getImageData(0, 0, offW, offH).data;
+  for (let gy = 0; gy < simH; gy++) {
+    const y0 = Math.floor((gy / simH) * offH);
+    const y1 = Math.max(y0 + 1, Math.floor(((gy + 1) / simH) * offH));
+    for (let gx = 0; gx < simW; gx++) {
+      const x0 = Math.floor((gx / simW) * offW);
+      const x1 = Math.max(x0 + 1, Math.floor(((gx + 1) / simW) * offW));
+      let sum = 0;
+      let count = 0;
+      for (let py = y0; py < y1; py++) {
+        const rowOff = py * offW;
+        for (let px = x0; px < x1; px++) {
+          sum += pixels[(rowOff + px) * 4 + 3] ?? 0;
+          count++;
+        }
+      }
+      const avg = count > 0 ? sum / (count * 255) : 0;
+      // Crisp non-dilating ramp so hollow counters (A, P, N, G) remain completely open
+      outMask[gy * simW + gx] = clamp01((avg - 0.16) / 0.68);
+    }
+  }
+
+  for (let gy = 0; gy < simH; gy++) {
+    const ym = Math.max(0, gy - 1);
+    const yp = Math.min(simH - 1, gy + 1);
+    for (let gx = 0; gx < simW; gx++) {
+      const xm = Math.max(0, gx - 1);
+      const xp = Math.min(simW - 1, gx + 1);
+      const val = outMask[gy * simW + gx] ?? 0;
+      if (val <= 0.16) {
+        outEdge[gy * simW + gx] = 0;
+        continue;
+      }
+      const dx = (outMask[gy * simW + xp] ?? 0) - (outMask[gy * simW + xm] ?? 0);
+      const dy = (outMask[yp * simW + gx] ?? 0) - (outMask[ym * simW + gx] ?? 0);
+      outEdge[gy * simW + gx] = clamp01(Math.hypot(dx, dy) * 0.78);
+    }
+  }
+
+  return 0.5 * (topFrac + bottomFrac);
+}
+
+// ── WebGL2 Compositor Backend ─────────────────────────────────────────
 
 function compileShader(
   gl: WebGL2RenderingContext,
@@ -150,112 +531,70 @@ function createWebGL2Backend(
   });
   if (!gl) return null;
 
-  const prog1 = linkProgram(gl, FULLSCREEN_VERTEX_SHADER, PASS1_FRAGMENT_SHADER);
-  const prog2 = linkProgram(gl, FULLSCREEN_VERTEX_SHADER, PASS2_FRAGMENT_SHADER);
-  if (!prog1 || !prog2) {
-    if (prog1) gl.deleteProgram(prog1);
-    if (prog2) gl.deleteProgram(prog2);
-    return null;
-  }
+  const prog = linkProgram(gl, FULLSCREEN_VERTEX_SHADER, PASS2_FRAGMENT_SHADER);
+  if (!prog) return null;
 
   const vao = gl.createVertexArray();
-  const fbo = gl.createFramebuffer();
-  const fboTex = gl.createTexture();
+  const fluidTex = gl.createTexture();
   const atlasTex = gl.createTexture();
-
-  if (!vao || !fbo || !fboTex || !atlasTex) {
+  if (!vao || !fluidTex || !atlasTex) {
     if (vao) gl.deleteVertexArray(vao);
-    if (fbo) gl.deleteFramebuffer(fbo);
-    if (fboTex) gl.deleteTexture(fboTex);
+    if (fluidTex) gl.deleteTexture(fluidTex);
     if (atlasTex) gl.deleteTexture(atlasTex);
-    gl.deleteProgram(prog1);
-    gl.deleteProgram(prog2);
+    gl.deleteProgram(prog);
     return null;
   }
 
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
 
-  const configureTexture = (tex: WebGLTexture, filter: number) => {
+  const configureTex = (tex: WebGLTexture) => {
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   };
 
-  configureTexture(fboTex, gl.LINEAR);
-  configureTexture(atlasTex, gl.LINEAR);
+  let texW = LANDSCAPE_W;
+  let texH = LANDSCAPE_H;
 
-  // Upload initial glyph atlas
-  gl.bindTexture(gl.TEXTURE_2D, atlasTex);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlasCanvas);
-
-  let fboWidth = 256;
-  let fboHeight = 128;
-  gl.bindTexture(gl.TEXTURE_2D, fboTex);
+  configureTex(fluidTex);
   gl.texImage2D(
     gl.TEXTURE_2D,
     0,
     gl.RGBA8,
-    fboWidth,
-    fboHeight,
+    texW,
+    texH,
     0,
     gl.RGBA,
     gl.UNSIGNED_BYTE,
     null,
   );
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fboTex, 0);
 
-  if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.deleteVertexArray(vao);
-    gl.deleteFramebuffer(fbo);
-    gl.deleteTexture(fboTex);
-    gl.deleteTexture(atlasTex);
-    gl.deleteProgram(prog1);
-    gl.deleteProgram(prog2);
-    return null;
-  }
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  configureTex(atlasTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlasCanvas);
 
-  const u1 = {
-    uTime: gl.getUniformLocation(prog1, "uTime"),
-    uAspect: gl.getUniformLocation(prog1, "uAspect"),
-    uSceneA: gl.getUniformLocation(prog1, "uSceneA"),
-    uSceneB: gl.getUniformLocation(prog1, "uSceneB"),
-    uSceneBlend: gl.getUniformLocation(prog1, "uSceneBlend"),
-    uOrbit: gl.getUniformLocation(prog1, "uOrbit"),
-    uPointer: gl.getUniformLocation(prog1, "uPointer"),
-    uPointerVel: gl.getUniformLocation(prog1, "uPointerVel"),
-    uPointerActive: gl.getUniformLocation(prog1, "uPointerActive"),
-    uShockwaves: [
-      gl.getUniformLocation(prog1, "uShockwaves[0]"),
-      gl.getUniformLocation(prog1, "uShockwaves[1]"),
-      gl.getUniformLocation(prog1, "uShockwaves[2]"),
-      gl.getUniformLocation(prog1, "uShockwaves[3]"),
-    ] as const,
+  const uniforms = {
+    uFluidTex: gl.getUniformLocation(prog, "uFluidTex"),
+    uAtlasTex: gl.getUniformLocation(prog, "uAtlasTex"),
+    uGridSize: gl.getUniformLocation(prog, "uGridSize"),
+    uFluidTexel: gl.getUniformLocation(prog, "uFluidTexel"),
+    uAtlasDims: gl.getUniformLocation(prog, "uAtlasDims"),
+    uAspect: gl.getUniformLocation(prog, "uAspect"),
+    uCharset: gl.getUniformLocation(prog, "uCharset"),
+    uMode: gl.getUniformLocation(prog, "uMode"),
+    uPaperColor: gl.getUniformLocation(prog, "uPaperColor"),
+    uInkColor: gl.getUniformLocation(prog, "uInkColor"),
+    uMutedColor: gl.getUniformLocation(prog, "uMutedColor"),
+    uAccentColor: gl.getUniformLocation(prog, "uAccentColor"),
+    uAccentSecondaryColor: gl.getUniformLocation(prog, "uAccentSecondaryColor"),
+    uClearRect: gl.getUniformLocation(prog, "uClearRect"),
+    uHasClearRect: gl.getUniformLocation(prog, "uHasClearRect"),
   };
 
-  const u2 = {
-    uSceneTex: gl.getUniformLocation(prog2, "uSceneTex"),
-    uAtlasTex: gl.getUniformLocation(prog2, "uAtlasTex"),
-    uGridSize: gl.getUniformLocation(prog2, "uGridSize"),
-    uFboTexel: gl.getUniformLocation(prog2, "uFboTexel"),
-    uAtlasDims: gl.getUniformLocation(prog2, "uAtlasDims"),
-    uAspect: gl.getUniformLocation(prog2, "uAspect"),
-    uCharset: gl.getUniformLocation(prog2, "uCharset"),
-    uPaperColor: gl.getUniformLocation(prog2, "uPaperColor"),
-    uInkColor: gl.getUniformLocation(prog2, "uInkColor"),
-    uMutedColor: gl.getUniformLocation(prog2, "uMutedColor"),
-    uAccentColor: gl.getUniformLocation(prog2, "uAccentColor"),
-    uClearRect: gl.getUniformLocation(prog2, "uClearRect"),
-    uHasClearRect: gl.getUniformLocation(prog2, "uHasClearRect"),
-  };
-
-  let screenW = canvas.width;
-  let screenH = canvas.height;
+  let screenW = Math.max(1, canvas.width);
+  let screenH = Math.max(1, canvas.height);
 
   const uploadAtlas = (nextAtlas: HTMLCanvasElement) => {
     if (gl.isContextLost()) return;
@@ -263,102 +602,103 @@ function createWebGL2Backend(
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, nextAtlas);
   };
 
-  const resize = (widthPx: number, heightPx: number, cols: number, rows: number) => {
+  const resize = (widthPx: number, heightPx: number, simW: number, simH: number) => {
     screenW = Math.max(1, widthPx);
     screenH = Math.max(1, heightPx);
-    const nextFboW = Math.max(64, Math.min(512, cols * 2));
-    const nextFboH = Math.max(48, Math.min(512, rows * 2));
-    if (nextFboW !== fboWidth || nextFboH !== fboHeight) {
-      fboWidth = nextFboW;
-      fboHeight = nextFboH;
-      gl.bindTexture(gl.TEXTURE_2D, fboTex);
+    if (simW !== texW || simH !== texH) {
+      texW = simW;
+      texH = simH;
+      if (!gl.isContextLost()) {
+        gl.bindTexture(gl.TEXTURE_2D, fluidTex);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA8,
+          texW,
+          texH,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          null,
+        );
+      }
+    }
+  };
+
+  const render = (state: FluidFrameState) => {
+    if (gl.isContextLost()) return;
+
+    gl.bindVertexArray(vao);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, screenW, screenH);
+    gl.useProgram(prog);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, fluidTex);
+    if (state.simW !== texW || state.simH !== texH) {
+      texW = state.simW;
+      texH = state.simH;
       gl.texImage2D(
         gl.TEXTURE_2D,
         0,
         gl.RGBA8,
-        fboWidth,
-        fboHeight,
+        texW,
+        texH,
         0,
         gl.RGBA,
         gl.UNSIGNED_BYTE,
-        null,
+        state.packedRgba,
+      );
+    } else {
+      gl.texSubImage2D(
+        gl.TEXTURE_2D,
+        0,
+        0,
+        0,
+        texW,
+        texH,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        state.packedRgba,
       );
     }
-  };
-
-  const render = (state: RenderState) => {
-    if (gl.isContextLost()) return;
-
-    gl.bindVertexArray(vao);
-
-    // ── Pass 1: Scene -> RGBA8 FBO ────────────────────────────────────
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-    gl.viewport(0, 0, fboWidth, fboHeight);
-    gl.useProgram(prog1);
-
-    gl.uniform1f(u1.uTime, state.timeSec);
-    gl.uniform1f(u1.uAspect, state.aspect);
-    gl.uniform1i(u1.uSceneA, state.sceneA);
-    gl.uniform1i(u1.uSceneB, state.sceneB);
-    gl.uniform1f(u1.uSceneBlend, state.sceneBlend);
-    gl.uniform2f(u1.uOrbit, state.orbitYaw, state.orbitPitch);
-    gl.uniform2f(u1.uPointer, state.pointerX, 1.0 - state.pointerY);
-    gl.uniform2f(u1.uPointerVel, state.pointerVelX, -state.pointerVelY);
-    gl.uniform1f(u1.uPointerActive, state.pointerActive);
-
-    for (let i = 0; i < 4; i++) {
-      const slot = state.shockwaves[i];
-      if (!slot || !slot.active) {
-        gl.uniform4f(u1.uShockwaves[i] ?? null, 0.5, 0.5, -1.0, 0.0);
-      } else {
-        const age = (state.nowMs - slot.startMs) / SHOCKWAVE_DURATION_MS;
-        if (age >= 1.0 || age < 0.0) {
-          gl.uniform4f(u1.uShockwaves[i] ?? null, 0.5, 0.5, -1.0, 0.0);
-        } else {
-          gl.uniform4f(u1.uShockwaves[i] ?? null, slot.x, 1.0 - slot.y, age, 1.0);
-        }
-      }
-    }
-
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-
-    // ── Pass 2: FBO + Sobel Edge Detection + Atlas -> Screen ─────────
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, screenW, screenH);
-    gl.useProgram(prog2);
-
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, fboTex);
-    gl.uniform1i(u2.uSceneTex, 0);
+    gl.uniform1i(uniforms.uFluidTex, 0);
 
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, atlasTex);
-    gl.uniform1i(u2.uAtlasTex, 1);
+    gl.uniform1i(uniforms.uAtlasTex, 1);
 
-    gl.uniform2f(u2.uGridSize, state.cols, state.rows);
-    gl.uniform2f(u2.uFboTexel, 1.0 / fboWidth, 1.0 / fboHeight);
-    gl.uniform2f(u2.uAtlasDims, ATLAS_SPEC.cols, ATLAS_SPEC.rows);
-    gl.uniform1f(u2.uAspect, state.aspect);
-    gl.uniform1i(u2.uCharset, CHARSET_INDEX[state.charset]);
+    gl.uniform2f(uniforms.uGridSize, state.cols, state.rows);
+    gl.uniform2f(uniforms.uFluidTexel, 1 / state.simW, 1 / state.simH);
+    gl.uniform2f(uniforms.uAtlasDims, ATLAS_SPEC.cols, ATLAS_SPEC.rows);
+    gl.uniform1f(uniforms.uAspect, state.aspect);
+    gl.uniform1i(uniforms.uCharset, CHARSET_INDEX[state.charset]);
+    gl.uniform1i(uniforms.uMode, MODE_INDEX[state.mode]);
 
-    const { paper, ink, muted, accent } = state.theme;
-    gl.uniform3f(u2.uPaperColor, paper.r, paper.g, paper.b);
-    gl.uniform3f(u2.uInkColor, ink.r, ink.g, ink.b);
-    gl.uniform3f(u2.uMutedColor, muted.r, muted.g, muted.b);
-    gl.uniform3f(u2.uAccentColor, accent.r, accent.g, accent.b);
+    const { paper, ink, muted, accent, accentSecondary } = state.theme;
+    gl.uniform3f(uniforms.uPaperColor, paper.r, paper.g, paper.b);
+    gl.uniform3f(uniforms.uInkColor, ink.r, ink.g, ink.b);
+    gl.uniform3f(uniforms.uMutedColor, muted.r, muted.g, muted.b);
+    gl.uniform3f(uniforms.uAccentColor, accent.r, accent.g, accent.b);
+    gl.uniform3f(
+      uniforms.uAccentSecondaryColor,
+      accentSecondary.r,
+      accentSecondary.g,
+      accentSecondary.b,
+    );
 
     if (state.clearRectUv) {
       gl.uniform4f(
-        u2.uClearRect,
+        uniforms.uClearRect,
         state.clearRectUv[0],
         state.clearRectUv[1],
         state.clearRectUv[2],
         state.clearRectUv[3],
       );
-      gl.uniform1f(u2.uHasClearRect, 1.0);
+      gl.uniform1f(uniforms.uHasClearRect, 1.0);
     } else {
-      gl.uniform4f(u2.uClearRect, 0.0, 0.0, 0.0, 0.0);
-      gl.uniform1f(u2.uHasClearRect, 0.0);
+      gl.uniform4f(uniforms.uClearRect, 0, 0, 0, 0);
+      gl.uniform1f(uniforms.uHasClearRect, 0.0);
     }
 
     gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -368,116 +708,63 @@ function createWebGL2Backend(
   const destroy = () => {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.deleteVertexArray(vao);
-    gl.deleteFramebuffer(fbo);
-    gl.deleteTexture(fboTex);
+    gl.deleteTexture(fluidTex);
     gl.deleteTexture(atlasTex);
-    gl.deleteProgram(prog1);
-    gl.deleteProgram(prog2);
+    gl.deleteProgram(prog);
   };
 
-  return {
-    uploadAtlas,
-    resize,
-    render,
-    destroy,
-  };
+  return { uploadAtlas, resize, render, destroy };
+}
+
+// ── Canvas 2D Fallback Backend ────────────────────────────────────────
+
+function sampleBilinear(
+  field: Float32Array,
+  simW: number,
+  simH: number,
+  nx: number,
+  ny: number,
+): number {
+  const gx = clamp(nx * simW - 0.5, 0, simW - 1.001);
+  const gy = clamp(ny * simH - 0.5, 0, simH - 1.001);
+  const x0 = Math.floor(gx);
+  const y0 = Math.floor(gy);
+  const x1 = Math.min(simW - 1, x0 + 1);
+  const y1 = Math.min(simH - 1, y0 + 1);
+  const sx = gx - x0;
+  const sy = gy - y0;
+
+  const v00 = field[y0 * simW + x0] ?? 0;
+  const v10 = field[y0 * simW + x1] ?? 0;
+  const v01 = field[y1 * simW + x0] ?? 0;
+  const v11 = field[y1 * simW + x1] ?? 0;
+  const top = v00 * (1 - sx) + v10 * sx;
+  const bot = v01 * (1 - sx) + v11 * sx;
+  return top * (1 - sy) + bot * sy;
 }
 
 function createCanvas2DBackend(canvas: HTMLCanvasElement): EngineBackend | null {
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
 
-  let lumaBuf = new Float32Array(0);
-  let accentBuf = new Float32Array(0);
-
-  const evalFallbackCell = (
-    sceneId: number,
-    nx: number,
-    ny: number,
-    state: RenderState,
-  ): [number, number] => {
-    const px = (nx * 2 - 1) * state.aspect;
-    const py = ny * 2 - 1;
-    const ptrPx = (state.pointerX * 2 - 1) * state.aspect;
-    const ptrPy = state.pointerY * 2 - 1;
-    const t = state.timeSec;
-
-    if (sceneId === 0) {
-      // Ferro metaballs 2D field
-      let field = 0;
-      for (let i = 0; i < 5; i++) {
-        const phase = i * 1.2566 + t * (0.55 + i * 0.08);
-        const cx = Math.sin(phase * 1.1 + state.orbitYaw) * 0.65;
-        const cy = Math.cos(phase * 0.9 + state.orbitPitch) * 0.45;
-        const dx = px - cx;
-        const dy = py - cy;
-        field += 0.12 / (dx * dx + dy * dy + 0.06);
-      }
-      if (state.pointerActive > 0.01) {
-        const dx = px - ptrPx;
-        const dy = py - ptrPy;
-        field += (0.09 * state.pointerActive) / (dx * dx + dy * dy + 0.05);
-      }
-      const lum = clamp01((field - 0.55) * 0.75);
-      const rim = clamp01(Math.exp(-Math.abs(field - 1.15) * 4.5));
-      return [lum, rim];
-    }
-
-    if (sceneId === 1) {
-      // Topographic contour lines
-      const h =
-        Math.sin(px * 2.1 + t * 0.45 + state.orbitYaw) *
-          Math.cos(py * 2.4 - t * 0.35 + state.orbitPitch) *
-          0.5 +
-        Math.sin((px + py) * 3.1 - t * 0.25) * 0.25;
-      const frac = Math.abs(((h * 5.0) % 1 + 1) % 1 - 0.5);
-      const contour = clamp01(1 - frac / 0.14);
-      const scan = Math.exp(-Math.pow((((ny - t * 0.18) % 1 + 1) % 1 - 0.5) * 10, 2));
-      return [clamp01(0.18 + contour * 0.65 + scan * 0.2), clamp01(contour * 0.6 + scan * 0.75)];
-    }
-
-    if (sceneId === 2) {
-      // Graticule sphere projection
-      const r = 0.76;
-      const dist = Math.hypot(px, py);
-      if (dist > r) {
-        const ring = Math.exp(-Math.pow((Math.hypot(px, py * 1.7) - 1.02) * 18, 2));
-        return [ring * 0.55, ring * 0.45];
-      }
-      const z = Math.sqrt(Math.max(0, r * r - dist * dist));
-      const lon = Math.atan2(px, z) + t * 0.4 + state.orbitYaw;
-      const lat = Math.asin(clamp01((py / r + 1) * 0.5) * 2 - 1) + state.orbitPitch * 0.5;
-      const gLon = Math.abs((((lon / (Math.PI / 6)) % 1) + 1) % 1 - 0.5);
-      const gLat = Math.abs((((lat / (Math.PI / 6)) % 1) + 1) % 1 - 0.5);
-      const grid = Math.max(gLon < 0.08 ? 1 : 0, gLat < 0.08 ? 1 : 0);
-      const scan = Math.exp(-Math.pow(((((lon / (Math.PI * 2) - t * 0.22) % 1) + 1) % 1 - 0.5) * 12, 2));
-      return [clamp01(0.2 + grid * 0.62 + scan * 0.25), clamp01(scan * 0.85)];
-    }
-
-    // Flow streamlines
-    const topFade = clamp01((ny - 0.045) / 0.145);
-    const dp = Math.hypot(px - ptrPx, py - ptrPy);
-    const wake = Math.exp(-dp * dp * 6.0) * state.pointerActive;
-    const wave =
-      Math.sin(px * 4.5 + Math.cos(py * 3.2 + t * 0.6) * 1.5 - t * 0.8 + state.orbitYaw) * 0.5 +
-      0.5;
-    return [
-      clamp01(wave * 0.72 + wake * 0.3) * topFade,
-      clamp01(wake * 0.85 + Math.pow(wave, 3) * 0.35) * topFade,
-    ];
-  };
+  let inkBuf = new Float32Array(0);
+  let accBuf = new Float32Array(0);
+  let velXBuf = new Float32Array(0);
+  let velYBuf = new Float32Array(0);
 
   return {
     uploadAtlas: () => {},
     resize: () => {},
-    render: (state: RenderState) => {
-      const { cols, rows, theme } = state;
+    render: (state: FluidFrameState) => {
+      const { cols, rows, simW, simH, theme } = state;
       const w = canvas.width;
       const h = canvas.height;
       const count = cols * rows;
-      if (lumaBuf.length !== count) {
-        lumaBuf = new Float32Array(count);
-        accentBuf = new Float32Array(count);
+      if (inkBuf.length !== count) {
+        inkBuf = new Float32Array(count);
+        accBuf = new Float32Array(count);
+        velXBuf = new Float32Array(count);
+        velYBuf = new Float32Array(count);
       }
 
       for (let row = 0; row < rows; row++) {
@@ -485,37 +772,10 @@ function createCanvas2DBackend(canvas: HTMLCanvasElement): EngineBackend | null 
         for (let col = 0; col < cols; col++) {
           const nx = (col + 0.5) / cols;
           const idx = row * cols + col;
-          let [lum, acc] = evalFallbackCell(state.sceneB, nx, ny, state);
-          if (state.sceneA !== state.sceneB && state.sceneBlend < 0.999) {
-            const [la, aa] = evalFallbackCell(state.sceneA, nx, ny, state);
-            lum = la + (lum - la) * state.sceneBlend;
-            acc = aa + (acc - aa) * state.sceneBlend;
-          }
-          lumaBuf[idx] = lum;
-          accentBuf[idx] = acc;
-        }
-      }
-
-      // Add shockwaves
-      for (let s = 0; s < 4; s++) {
-        const sw = state.shockwaves[s];
-        if (!sw || !sw.active) continue;
-        const age = (state.nowMs - sw.startMs) / SHOCKWAVE_DURATION_MS;
-        if (age < 0 || age >= 1) continue;
-        const radius = age * 0.92;
-        const fade = 1 - age;
-        for (let row = 0; row < rows; row++) {
-          const ny = (row + 0.5) / rows;
-          for (let col = 0; col < cols; col++) {
-            const nx = (col + 0.5) / cols;
-            const d = Math.hypot((nx - sw.x) * state.aspect, ny - sw.y);
-            const ring = Math.exp(-Math.pow((d - radius) * 18, 2)) * fade;
-            if (ring > 0.02) {
-              const idx = row * cols + col;
-              lumaBuf[idx] = clamp01((lumaBuf[idx] ?? 0) + ring * 0.45);
-              accentBuf[idx] = clamp01((accentBuf[idx] ?? 0) + ring * 0.85);
-            }
-          }
+          inkBuf[idx] = clamp01(sampleBilinear(state.ink, simW, simH, nx, ny));
+          accBuf[idx] = clamp01(sampleBilinear(state.energy, simW, simH, nx, ny));
+          velXBuf[idx] = sampleBilinear(state.velU, simW, simH, nx, ny) / 14;
+          velYBuf[idx] = -sampleBilinear(state.velV, simW, simH, nx, ny) / 14;
         }
       }
 
@@ -554,20 +814,38 @@ function createCanvas2DBackend(canvas: HTMLCanvasElement): EngineBackend | null 
             const dy = Math.abs(ny - cy) - hy;
             const boxDist =
               Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) + Math.min(Math.max(dx, dy), 0);
-            clearMask = clamp01((boxDist - 0.015) / 0.145);
+            clearMask = smoothstep(-0.005, 0.055, boxDist);
           }
 
           const idx = row * cols + col;
-          const lum = clamp01((lumaBuf[idx] ?? 0) * clearMask);
-          if (lum < 0.05) continue;
+          const ink = clamp01((inkBuf[idx] ?? 0) * clearMask);
+          const acc = clamp01((accBuf[idx] ?? 0) * clearMask);
+          const lum = clamp01(ink + acc * 0.14);
+          if (Math.max(ink, acc * 0.48) < 0.085) continue;
 
-          let ch = ramp[Math.min(ramp.length - 1, Math.floor(lum * ramp.length))] ?? " ";
+          const vx = velXBuf[idx] ?? 0;
+          const vy = velYBuf[idx] ?? 0;
+          const speed = Math.hypot(vx, vy);
 
-          if (state.charset === "ascii" && clearMask > 0.35 && col > 0 && col < cols - 1 && row > 0 && row < rows - 1) {
-            const gx = (lumaBuf[idx + 1] ?? 0) - (lumaBuf[idx - 1] ?? 0);
-            const gy = (lumaBuf[idx - cols] ?? 0) - (lumaBuf[idx + cols] ?? 0);
-            const mag = Math.hypot(gx, gy) * clearMask;
-            if (mag > 0.24) {
+          let gx = 0;
+          let gy = 0;
+          let edgeMag = 0;
+          if (col > 0 && col < cols - 1 && row > 0 && row < rows - 1) {
+            gx = (inkBuf[idx + 1] ?? 0) - (inkBuf[idx - 1] ?? 0);
+            gy = (inkBuf[idx - cols] ?? 0) - (inkBuf[idx + cols] ?? 0);
+            edgeMag = Math.hypot(gx, gy);
+          }
+
+          let ch = ramp[Math.min(ramp.length - 1, Math.floor(clamp(lum, 0, 0.999) * ramp.length))] ?? " ";
+
+          if (state.charset === "ascii" && clearMask > 0.35) {
+            if (speed > 0.14 && acc > 0.24 && ink > 0.09 && ink < 0.85) {
+              const angle = ((Math.atan2(vy, vx) % Math.PI) + Math.PI) % Math.PI;
+              if (angle < Math.PI * 0.125 || angle >= Math.PI * 0.875) ch = edgeChars[2];
+              else if (angle < Math.PI * 0.375) ch = edgeChars[1];
+              else if (angle < Math.PI * 0.625) ch = edgeChars[0];
+              else ch = edgeChars[3];
+            } else if (edgeMag * clearMask > 0.30 && ink > 0.24 && ink < 0.68) {
               const angle = ((Math.atan2(gy, gx) % Math.PI) + Math.PI) % Math.PI;
               if (angle < Math.PI * 0.125 || angle >= Math.PI * 0.875) ch = edgeChars[0];
               else if (angle < Math.PI * 0.375) ch = edgeChars[3];
@@ -578,30 +856,35 @@ function createCanvas2DBackend(canvas: HTMLCanvasElement): EngineBackend | null 
 
           if (ch === " " || ch === "\u2800") continue;
 
-          const acc = clamp01(accentBuf[idx] ?? 0);
-          const base = mixRgb(theme.muted, theme.ink, clamp01((lum - 0.24) / 0.58));
-          const finalRgb = mixRgb(base, theme.accent, clamp01((acc - 0.32) / 0.56));
-          ctx.fillStyle = rgbToCss(finalRgb, clearMask);
+          const base = mixRgb(theme.muted, theme.ink, smoothstep(0.28, 0.70, ink));
+          const secMix = clamp01(speed * 0.48) * (1 - smoothstep(0.55, 0.95, ink));
+          const fieldRgb = mixRgb(base, theme.accentSecondary, secMix);
+          const finalRgb = mixRgb(fieldRgb, theme.accent, smoothstep(0.26, 0.78, acc));
+          const vis = clearMask * smoothstep(0.085, 0.24, Math.max(ink, acc * 0.48));
+          ctx.fillStyle = rgbToCss(finalRgb, vis);
           ctx.fillText(ch, (col + 0.5) * cellW, (row + 0.52) * cellH);
         }
       }
     },
     destroy: () => {
-      lumaBuf = new Float32Array(0);
-      accentBuf = new Float32Array(0);
+      inkBuf = new Float32Array(0);
+      accBuf = new Float32Array(0);
+      velXBuf = new Float32Array(0);
+      velYBuf = new Float32Array(0);
     },
   };
 }
+
+// ── Public Mount Entry ────────────────────────────────────────────────
 
 export function mountHeroAscii(
   canvas: HTMLCanvasElement,
   options: HeroAsciiOptions = {},
 ): HeroAsciiHandle {
   let destroyed = false;
-  let sceneA = SCENE_INDEX[options.initialScene ?? "ferro"];
-  let sceneB = sceneA;
-  let sceneBlend = 1;
+  let currentMode: HeroFluidMode = options.initialMode ?? "shatter";
   let currentCharset: AsciiCharset = options.initialCharset ?? "ascii";
+  let currentText: string = options.initialText ?? DEFAULT_DISPLAY_TEXT;
 
   let reducedMotion = isReducedMotionPreferred();
   let isVisible = true;
@@ -609,47 +892,65 @@ export function mountHeroAscii(
 
   let themeColors = resolveThemeColors();
   const atlasCanvas = buildGlyphAtlasCanvas();
+  const maskCanvas = document.createElement("canvas");
 
   let backend: EngineBackend | null = createWebGL2Backend(canvas, atlasCanvas);
   if (!backend) {
     backend = createCanvas2DBackend(canvas);
   }
 
+  let simW = LANDSCAPE_W;
+  let simH = LANDSCAPE_H;
+
+  // CPU 5184-cell (96x54 landscape / 54x96 portrait) Navier-Stokes buffers
+  let velU = new Float32Array(SIM_N);
+  let velV = new Float32Array(SIM_N);
+  let velUPrev = new Float32Array(SIM_N);
+  let velVPrev = new Float32Array(SIM_N);
+  const divBuf = new Float32Array(SIM_N);
+  const pressBuf = new Float32Array(SIM_N);
+  const curlBuf = new Float32Array(SIM_N);
+
+  let ink = new Float32Array(SIM_N);
+  let inkPrev = new Float32Array(SIM_N);
+  let energy = new Float32Array(SIM_N);
+  let energyPrev = new Float32Array(SIM_N);
+
+  const targetMask = new Float32Array(SIM_N);
+  const targetEdge = new Float32Array(SIM_N);
+  const prevMaskScratch = new Float32Array(SIM_N);
+  const packedRgba = new Uint8Array(SIM_N * 4);
+
   let widthPx = 1;
   let heightPx = 1;
-  let cols = 80;
-  let rows = 36;
+  let cols = 96;
+  let rows = 42;
   let aspect = 16 / 9;
+  let typographyCenterY = 0.4;
 
-  let orbitYaw = 0;
-  let orbitPitch = 0;
-  let orbitVelX = 0;
-  let orbitVelY = 0;
-
-  let pointerX = 0.5;
-  let pointerY = 0.5;
-  let pointerVelX = 0;
-  let pointerVelY = 0;
+  let pointerNormX = 0.5;
+  let pointerNormY = 0.4;
+  let prevSliceGridX = simW * 0.5;
+  let prevSliceGridY = simH * 0.4;
+  let hasPrevPointer = false;
   let pointerActive = 0;
-  let pointerActiveTarget = 0;
 
-  const shockwaves: ShockwaveSlot[] = [
+  const shockRings: ShockRing[] = [
     { x: 0.5, y: 0.5, startMs: 0, active: false },
     { x: 0.5, y: 0.5, startMs: 0, active: false },
     { x: 0.5, y: 0.5, startMs: 0, active: false },
     { x: 0.5, y: 0.5, startMs: 0, active: false },
   ];
-  let shockwaveCursor = 0;
-  let lastShockMs = -1000;
-  let lastShockX = -1;
-  let lastShockY = -1;
-  let lastDragEndMs = -1000;
+  let shockCursor = 0;
+  let lastBurstMs = -1000;
+  let lastBurstX = -1;
+  let lastBurstY = -1;
 
   let clearRectUv: [number, number, number, number] | null = null;
   let clearRectDom: [number, number, number, number] | null = null;
   let layoutDirty = true;
 
-  let simTimeSec = reducedMotion ? STATIC_REDUCED_MOTION_TIME_SEC : 0;
+  let simTimeSec = reducedMotion ? STATIC_REDUCED_MOTION_SEC : 0;
   let rafId: number | null = null;
   let lastFrameMs = 0;
 
@@ -677,6 +978,342 @@ export function mountHeroAscii(
     clearRectDom = [left, domTop, right, domBottom];
   };
 
+  const rebuildTypographyMask = (seedInk = false) => {
+    prevMaskScratch.set(targetMask);
+    typographyCenterY = rasterizeTypographyMask(
+      maskCanvas,
+      currentText,
+      aspect,
+      simW,
+      simH,
+      clearRectDom,
+      targetMask,
+      targetEdge,
+    );
+
+    if (seedInk || reducedMotion) {
+      for (let i = 0; i < SIM_N; i++) {
+        ink[i] = targetMask[i] ?? 0;
+      }
+    } else {
+      for (let i = 0; i < SIM_N; i++) {
+        const diff = Math.abs((targetMask[i] ?? 0) - (prevMaskScratch[i] ?? 0));
+        if (diff > 0.15) {
+          energy[i] = clamp((energy[i] ?? 0) + diff * 0.72, 0, 1.4);
+        }
+      }
+    }
+  };
+
+  const splatVelocity = (
+    gx: number,
+    gy: number,
+    vxImpulse: number,
+    vyImpulse: number,
+    radius: number,
+    energyBoost: number,
+  ) => {
+    const rCeil = Math.ceil(radius * 2.2);
+    const minX = Math.max(1, Math.floor(gx - rCeil));
+    const maxX = Math.min(simW - 2, Math.ceil(gx + rCeil));
+    const minY = Math.max(1, Math.floor(gy - rCeil));
+    const maxY = Math.min(simH - 2, Math.ceil(gy + rCeil));
+    const invR2 = 1 / Math.max(0.5, radius * radius);
+
+    for (let y = minY; y <= maxY; y++) {
+      const dy = y - gy;
+      const row = y * simW;
+      for (let x = minX; x <= maxX; x++) {
+        const dx = x - gx;
+        const d2 = dx * dx + dy * dy;
+        const w = Math.exp(-d2 * invR2);
+        if (w < 0.015) continue;
+        const idx = row + x;
+        const swirlX = -dy * 0.35;
+        const swirlY = dx * 0.35;
+        velU[idx] = clamp((velU[idx] ?? 0) + (vxImpulse + swirlX) * w, -42, 42);
+        velV[idx] = clamp((velV[idx] ?? 0) + (vyImpulse + swirlY) * w, -42, 42);
+        energy[idx] = clamp((energy[idx] ?? 0) + energyBoost * w, 0, 1.5);
+      }
+    }
+  };
+
+  const applyModeForcesAndCouple = (dt: number, nowMs: number) => {
+    if (currentMode === "vortex") {
+      const cx = simW * 0.5;
+      const cy = simH * typographyCenterY;
+      const orbitRx = simW * 0.28;
+      const orbitRy = simH * 0.18;
+
+      const a1 = simTimeSec * 1.15;
+      const j1x = cx + Math.cos(a1) * orbitRx;
+      const j1y = cy + Math.sin(a1 * 1.3) * orbitRy;
+      const t1x = -Math.sin(a1) * 14;
+      const t1y = Math.cos(a1 * 1.3) * 12;
+      splatVelocity(j1x, j1y, t1x * dt * 11, t1y * dt * 11, 5.2, dt * 1.6);
+
+      const a2 = a1 + Math.PI;
+      const j2x = cx + Math.cos(a2) * orbitRx;
+      const j2y = cy + Math.sin(a2 * 1.3) * orbitRy;
+      const t2x = Math.sin(a2) * 14;
+      const t2y = -Math.cos(a2 * 1.3) * 12;
+      splatVelocity(j2x, j2y, t2x * dt * 11, t2y * dt * 11, 5.2, dt * 1.6);
+    }
+
+    if (currentMode === "topography") {
+      const t = simTimeSec;
+      for (let y = 1; y < simH - 1; y++) {
+        const ny = y / simH;
+        const row = y * simW;
+        for (let x = 1; x < simW - 1; x++) {
+          const nx = x / simW;
+          const idx = row + x;
+          const fx = Math.sin(ny * 7.2 + t * 0.9) * 3.8;
+          const fy = Math.cos(nx * 8.4 - t * 0.75) * 3.2;
+          velU[idx] = clamp((velU[idx] ?? 0) + fx * dt, -36, 36);
+          velV[idx] = clamp((velV[idx] ?? 0) + fy * dt, -36, 36);
+        }
+      }
+    }
+
+    applyVorticityConfinement(
+      velU,
+      velV,
+      curlBuf,
+      simW,
+      simH,
+      dt,
+      currentMode === "vortex" ? 1.55 : 1.25,
+    );
+
+    const velDamp = Math.exp(-dt * (currentMode === "vortex" ? 1.35 : 1.85));
+    for (let i = 0; i < SIM_N; i++) {
+      velU[i] = (velU[i] ?? 0) * velDamp;
+      velV[i] = (velV[i] ?? 0) * velDamp;
+    }
+
+    project(velU, velV, pressBuf, divBuf, simW, simH);
+
+    velUPrev.set(velU);
+    velVPrev.set(velV);
+    advect(1, velU, velUPrev, velUPrev, velVPrev, simW, simH, dt);
+    advect(2, velV, velVPrev, velUPrev, velVPrev, simW, simH, dt);
+    project(velU, velV, pressBuf, divBuf, simW, simH);
+
+    inkPrev.set(ink);
+    energyPrev.set(energy);
+    advect(0, ink, inkPrev, velU, velV, simW, simH, dt);
+    advect(0, energy, energyPrev, velU, velV, simW, simH, dt);
+
+    const energyDecay = Math.exp(-dt * 2.25);
+    const ptrGx = pointerNormX * simW;
+    const ptrGy = pointerNormY * simH;
+
+    for (let y = 0; y < simH; y++) {
+      const ny = (y + 0.5) / simH;
+      // Keep the fixed top navbar region clean & unobstructed
+      const navClear = smoothstep(0.07, 0.145, ny);
+      const row = y * simW;
+      for (let x = 0; x < simW; x++) {
+        const nx = (x + 0.5) / simW;
+        const i = row + x;
+
+        const uVal = velU[i] ?? 0;
+        const vVal = velV[i] ?? 0;
+        const speed = Math.hypot(uVal, vVal);
+        const mask = targetMask[i] ?? 0;
+        const edge = targetEdge[i] ?? 0;
+
+        let desiredInk = mask;
+        let ambientAccent = 0;
+
+        if (currentMode === "shatter") {
+          const drift =
+            Math.sin(nx * 9.5 + simTimeSec * 0.42 + uVal * 0.14) *
+            Math.cos(ny * 6.8 - simTimeSec * 0.34 + vVal * 0.14);
+          const contour = smoothstep(0.62, 0.98, Math.abs(drift));
+          desiredInk = Math.max(mask, contour * 0.15 * navClear);
+          ambientAccent = edge * 0.62;
+        } else if (currentMode === "topography") {
+          const ptrWave =
+            pointerActive > 0.05
+              ? Math.exp(-((x - ptrGx) * (x - ptrGx) + (y - ptrGy) * (y - ptrGy)) / 42) *
+                0.55 *
+                pointerActive
+              : 0;
+          const elev =
+            Math.sin(nx * 5.6 + simTimeSec * 0.38 + uVal * 0.12) *
+              Math.cos(ny * 4.8 - simTimeSec * 0.28 + vVal * 0.12) *
+              0.5 +
+            Math.sin((nx + ny) * 7.5 - simTimeSec * 0.22) * 0.22 +
+            mask * 0.68 +
+            ptrWave;
+          const frac = Math.abs((((elev * 4.4) % 1) + 1) % 1 - 0.5);
+          const contour = clamp01(1 - frac / 0.14);
+          desiredInk = clamp01(Math.max(mask * 0.94, contour * 0.54 * navClear));
+          ambientAccent = clamp01(
+            edge * 0.62 + contour * 0.45 * navClear * (1 - mask * 0.5),
+          );
+        } else {
+          const dx = (nx - 0.5) * aspect;
+          const dy = ny - typographyCenterY;
+          const r = Math.hypot(dx, dy);
+          const ring = Math.exp(-Math.pow((r - 0.38) * 14, 2)) * 0.22 * navClear;
+          desiredInk = Math.max(mask * 0.94, ring);
+          ambientAccent = clamp01(edge * 0.62 + ring * 0.78);
+        }
+
+        const curEnergy = energy[i] ?? 0;
+        const shatterSuppress = 1 / (1 + speed * 0.48 + curEnergy * 1.45);
+        const restore = Math.min(1, dt * 5.2 * shatterSuppress);
+        const nextInk = (ink[i] ?? 0) + (desiredInk - (ink[i] ?? 0)) * restore;
+        ink[i] = clamp01(nextInk);
+
+        const velGlow = clamp01(speed * 0.068) * navClear;
+        energy[i] = clamp(
+          Math.max(
+            curEnergy * energyDecay * (0.2 + 0.8 * navClear),
+            velGlow,
+            ambientAccent * clamp01(ink[i]! * 1.35),
+          ),
+          0,
+          1.4,
+        );
+      }
+    }
+
+    for (let s = 0; s < 4; s++) {
+      const ring = shockRings[s];
+      if (!ring || !ring.active) continue;
+      const age = (nowMs - ring.startMs) / BURST_DURATION_MS;
+      if (age >= 1 || age < 0) {
+        ring.active = false;
+        continue;
+      }
+      const radius = age * 0.88;
+      const fade = (1 - age) * 1.1;
+      for (let y = 0; y < simH; y++) {
+        const ny = (y + 0.5) / simH;
+        const navClear = smoothstep(0.07, 0.145, ny);
+        if (navClear <= 0.01) continue;
+        const row = y * simW;
+        for (let x = 0; x < simW; x++) {
+          const nx = (x + 0.5) / simW;
+          const d = Math.hypot((nx - ring.x) * aspect, ny - ring.y);
+          const band = Math.exp(-Math.pow((d - radius) * 19, 2)) * fade * navClear;
+          if (band > 0.03) {
+            const i = row + x;
+            ink[i] = clamp01((ink[i] ?? 0) + band * 0.34);
+            energy[i] = clamp((energy[i] ?? 0) + band * 0.95, 0, 1.4);
+          }
+        }
+      }
+    }
+  };
+
+  const populateStaticReducedFrame = (nowMs: number) => {
+    velU.fill(0);
+    velV.fill(0);
+    for (let y = 0; y < simH; y++) {
+      const ny = (y + 0.5) / simH;
+      const navClear = smoothstep(0.07, 0.145, ny);
+      const row = y * simW;
+      for (let x = 0; x < simW; x++) {
+        const nx = (x + 0.5) / simW;
+        const i = row + x;
+        const mask = targetMask[i] ?? 0;
+        const edge = targetEdge[i] ?? 0;
+        if (currentMode === "topography") {
+          const elev =
+            Math.sin(nx * 5.6 + 0.9) * Math.cos(ny * 4.8 - 0.7) * 0.5 + mask * 0.68;
+          const frac = Math.abs((((elev * 4.4) % 1) + 1) % 1 - 0.5);
+          const contour = clamp01(1 - frac / 0.14);
+          ink[i] = clamp01(Math.max(mask * 0.95, contour * 0.52 * navClear));
+          energy[i] = clamp01(edge * 0.62 + contour * 0.36 * navClear);
+        } else {
+          const drift = Math.sin(nx * 9.5 + 1.0) * Math.cos(ny * 6.8 - 0.8);
+          const contour = smoothstep(0.64, 0.98, Math.abs(drift));
+          ink[i] = Math.max(mask, contour * 0.14 * navClear);
+          energy[i] = edge * 0.62;
+        }
+      }
+    }
+    for (let s = 0; s < 4; s++) {
+      const ring = shockRings[s];
+      if (!ring || !ring.active) continue;
+      const age = (nowMs - ring.startMs) / BURST_DURATION_MS;
+      if (age >= 1 || age < 0) {
+        ring.active = false;
+        continue;
+      }
+      const radius = age * 0.88;
+      for (let y = 0; y < simH; y++) {
+        const ny = (y + 0.5) / simH;
+        const navClear = smoothstep(0.07, 0.145, ny);
+        if (navClear <= 0.01) continue;
+        const row = y * simW;
+        for (let x = 0; x < simW; x++) {
+          const nx = (x + 0.5) / simW;
+          const d = Math.hypot((nx - ring.x) * aspect, ny - ring.y);
+          const band = Math.exp(-Math.pow((d - radius) * 19, 2)) * (1 - age) * navClear;
+          if (band > 0.04) {
+            const i = row + x;
+            ink[i] = clamp01((ink[i] ?? 0) + band * 0.34);
+            energy[i] = clamp01((energy[i] ?? 0) + band * 0.9);
+          }
+        }
+      }
+    }
+  };
+
+  const packFluidTexture = () => {
+    for (let y = 0; y < simH; y++) {
+      const simRow = y * simW;
+      const texRow = (simH - 1 - y) * simW;
+      for (let x = 0; x < simW; x++) {
+        const simIdx = simRow + x;
+        const texIdx = (texRow + x) * 4;
+        const inkVal = clamp01(ink[simIdx] ?? 0);
+        const accVal = clamp01(energy[simIdx] ?? 0);
+        const vxNorm = clamp((velU[simIdx] ?? 0) / 14, -1, 1);
+        const vyNorm = clamp(-(velV[simIdx] ?? 0) / 14, -1, 1);
+
+        packedRgba[texIdx] = Math.round(inkVal * 255);
+        packedRgba[texIdx + 1] = Math.round(accVal * 255);
+        packedRgba[texIdx + 2] = Math.round(128 + vxNorm * 127);
+        packedRgba[texIdx + 3] = Math.round(128 + vyNorm * 127);
+      }
+    }
+  };
+
+  const renderSingleFrame = (nowMs: number) => {
+    if (destroyed || !backend) return;
+    if (layoutDirty) {
+      updateClearRect();
+    }
+    if (reducedMotion) {
+      populateStaticReducedFrame(nowMs);
+    }
+    packFluidTexture();
+    backend.render({
+      simW,
+      simH,
+      cols,
+      rows,
+      aspect,
+      mode: currentMode,
+      charset: currentCharset,
+      theme: themeColors,
+      clearRectUv,
+      clearRectDom,
+      packedRgba,
+      ink,
+      energy,
+      velU,
+      velV,
+    });
+  };
+
   const syncSize = () => {
     const rect = canvas.getBoundingClientRect();
     const cssW = Math.max(1, rect.width || canvas.clientWidth || window.innerWidth);
@@ -693,41 +1330,24 @@ export function mountHeroAscii(
     heightPx = nextH;
     aspect = cssW / cssH;
 
-    const pitchX = cssW < 640 ? 10 : 11;
-    const pitchY = cssW < 640 ? 16 : 17;
-    cols = Math.max(32, Math.min(180, Math.round(cssW / pitchX)));
-    rows = Math.max(18, Math.min(90, Math.round(cssH / pitchY)));
+    const nextSimW = aspect < 1.0 ? LANDSCAPE_H : LANDSCAPE_W;
+    const nextSimH = aspect < 1.0 ? LANDSCAPE_W : LANDSCAPE_H;
+    if (nextSimW !== simW || nextSimH !== simH) {
+      simW = nextSimW;
+      simH = nextSimH;
+      velU.fill(0);
+      velV.fill(0);
+      energy.fill(0);
+    }
 
-    backend?.resize(widthPx, heightPx, cols, rows);
-    layoutDirty = true;
-  };
+    const pitchX = cssW < 640 ? 5.8 : 9.2;
+    const pitchY = cssW < 640 ? 9.2 : 14.5;
+    cols = Math.max(42, Math.min(180, Math.round(cssW / pitchX)));
+    rows = Math.max(28, Math.min(104, Math.round(cssH / pitchY)));
 
-  const renderSingleFrame = (nowMs: number) => {
-    if (destroyed || !backend) return;
-    if (layoutDirty) updateClearRect();
-
-    backend.render({
-      timeSec: simTimeSec,
-      aspect,
-      cols,
-      rows,
-      sceneA,
-      sceneB,
-      sceneBlend,
-      charset: currentCharset,
-      orbitYaw,
-      orbitPitch,
-      pointerX,
-      pointerY,
-      pointerVelX,
-      pointerVelY,
-      pointerActive,
-      shockwaves,
-      nowMs,
-      theme: themeColors,
-      clearRectUv,
-      clearRectDom,
-    });
+    backend?.resize(widthPx, heightPx, simW, simH);
+    updateClearRect();
+    rebuildTypographyMask(simTimeSec === 0);
   };
 
   const stopLoop = () => {
@@ -741,37 +1361,12 @@ export function mountHeroAscii(
     rafId = null;
     if (destroyed || reducedMotion || !isVisible || !isPageVisible) return;
 
-    const dt = lastFrameMs > 0 ? Math.min((nowMs - lastFrameMs) / 1000, 0.05) : 0.016;
+    const dt = lastFrameMs > 0 ? Math.min((nowMs - lastFrameMs) / 1000, 0.04) : 0.016;
     lastFrameMs = nowMs;
     simTimeSec += dt;
+    pointerActive *= Math.exp(-dt * 4.5);
 
-    if (sceneBlend < 1) {
-      sceneBlend = Math.min(1, sceneBlend + dt / 0.65);
-      if (sceneBlend >= 1) {
-        sceneA = sceneB;
-      }
-    }
-
-    // Orbit inertia decay
-    orbitYaw += orbitVelX * dt;
-    orbitPitch = Math.max(-0.9, Math.min(0.9, orbitPitch + orbitVelY * dt));
-    const decay = Math.exp(-dt * 4.5);
-    orbitVelX *= decay;
-    orbitVelY *= decay;
-
-    // Pointer smoothing
-    pointerActive += (pointerActiveTarget - pointerActive) * (1 - Math.exp(-dt * 7.5));
-    pointerVelX *= Math.exp(-dt * 9.0);
-    pointerVelY *= Math.exp(-dt * 9.0);
-
-    // Expire completed shockwaves
-    for (let i = 0; i < 4; i++) {
-      const slot = shockwaves[i];
-      if (slot && slot.active && nowMs - slot.startMs >= SHOCKWAVE_DURATION_MS) {
-        slot.active = false;
-      }
-    }
-
+    applyModeForcesAndCouple(dt, nowMs);
     renderSingleFrame(nowMs);
     rafId = requestAnimationFrame(tick);
   };
@@ -798,123 +1393,91 @@ export function mountHeroAscii(
     }
   };
 
-  // ── Pointer & Drag-to-Orbit (touch-action: pan-y compliant) ──────
-  let activePointerId: number | null = null;
-  let dragStartX = 0;
-  let dragStartY = 0;
-  let dragLastX = 0;
-  let dragLastY = 0;
-  let dragDistance = 0;
-  let isTouchPointer = false;
-
-  const onCanvasPointerDown = (e: PointerEvent) => {
-    if (destroyed) return;
-    if (e.button !== 0 && e.pointerType === "mouse") return;
-    activePointerId = e.pointerId;
-    dragStartX = e.clientX;
-    dragStartY = e.clientY;
-    dragLastX = e.clientX;
-    dragLastY = e.clientY;
-    dragDistance = 0;
-    isTouchPointer = e.pointerType === "touch";
-  };
-
+  // ── Pointer Slicing (passive, touch-action: pan-y safe) ───────────
   const onWindowPointerMove = (e: PointerEvent) => {
-    if (destroyed) return;
+    if (destroyed || reducedMotion) return;
     const rect = canvas.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) {
-      const inside =
-        e.clientX >= rect.left &&
-        e.clientX <= rect.right &&
-        e.clientY >= rect.top &&
-        e.clientY <= rect.bottom;
+    if (rect.width <= 0 || rect.height <= 0) return;
 
-      if (inside || activePointerId === e.pointerId) {
-        const nx = clamp01((e.clientX - rect.left) / rect.width);
-        const ny = clamp01((e.clientY - rect.top) / rect.height);
-        pointerVelX = Math.max(-1.5, Math.min(1.5, (nx - pointerX) * 18));
-        pointerVelY = Math.max(-1.5, Math.min(1.5, (ny - pointerY) * 18));
-        pointerX = nx;
-        pointerY = ny;
-        pointerActiveTarget = 1;
-      } else {
-        pointerActiveTarget = 0;
-      }
+    const inside =
+      e.clientX >= rect.left &&
+      e.clientX <= rect.right &&
+      e.clientY >= rect.top &&
+      e.clientY <= rect.bottom;
+
+    if (!inside) {
+      hasPrevPointer = false;
+      return;
     }
 
-    if (activePointerId === e.pointerId) {
-      const dx = e.clientX - dragLastX;
-      const dy = e.clientY - dragLastY;
-      dragDistance += Math.hypot(dx, dy);
+    const nx = clamp01((e.clientX - rect.left) / rect.width);
+    const ny = clamp01((e.clientY - rect.top) / rect.height);
+    const gx = nx * simW;
+    const gy = ny * simH;
 
-      // Yield immediately to vertical touch scroll (touch-action: pan-y)
-      if (isTouchPointer) {
-        const totalDx = Math.abs(e.clientX - dragStartX);
-        const totalDy = Math.abs(e.clientY - dragStartY);
-        if (totalDy > totalDx * 1.15 && totalDy > 10) {
-          activePointerId = null;
-          return;
-        }
-      }
+    pointerNormX = nx;
+    pointerNormY = ny;
+    pointerActive = 1;
 
-      if (rect.width > 0 && rect.height > 0) {
-        const dYaw = (dx / rect.width) * 2.8;
-        const dPitch = (dy / rect.height) * 2.2;
-        orbitYaw += dYaw;
-        orbitPitch = Math.max(-0.9, Math.min(0.9, orbitPitch + dPitch));
-        orbitVelX = dYaw * 24;
-        orbitVelY = dPitch * 24;
-      }
-      dragLastX = e.clientX;
-      dragLastY = e.clientY;
+    if (!hasPrevPointer) {
+      prevSliceGridX = gx;
+      prevSliceGridY = gy;
+      hasPrevPointer = true;
+      return;
     }
-  };
 
-  const onWindowPointerUp = (e: PointerEvent) => {
-    if (activePointerId !== e.pointerId) return;
-    const wasTap = e.type === "pointerup" && dragDistance < 6 && e.target === canvas;
-    if (!wasTap && dragDistance >= 6) {
-      lastDragEndMs = performance.now();
-    }
-    activePointerId = null;
+    const dx = gx - prevSliceGridX;
+    const dy = gy - prevSliceGridY;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 0.08) {
+      const steps = Math.min(12, Math.max(1, Math.ceil(dist * 1.4)));
+      const vxImp = clamp(dx * 5.2, -32, 32) / steps;
+      const vyImp = clamp(dy * 5.2, -32, 32) / steps;
+      const energyBoost = clamp(dist * 0.24, 0.28, 0.95) / Math.sqrt(steps);
 
-    if (wasTap) {
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        triggerShockwave(
-          (e.clientX - rect.left) / rect.width,
-          (e.clientY - rect.top) / rect.height,
+      for (let s = 1; s <= steps; s++) {
+        const t = s / steps;
+        splatVelocity(
+          prevSliceGridX + dx * t,
+          prevSliceGridY + dy * t,
+          vxImp,
+          vyImp,
+          3.4,
+          energyBoost,
         );
       }
+      prevSliceGridX = gx;
+      prevSliceGridY = gy;
     }
   };
 
   const onCanvasPointerLeave = () => {
-    if (activePointerId === null) {
-      pointerActiveTarget = 0;
-    }
+    hasPrevPointer = false;
   };
 
-  canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: true });
   canvas.addEventListener("pointerleave", onCanvasPointerLeave, { passive: true });
   window.addEventListener("pointermove", onWindowPointerMove, { passive: true });
-  window.addEventListener("pointerup", onWindowPointerUp, { passive: true });
-  window.addEventListener("pointercancel", onWindowPointerUp, { passive: true });
 
-  // ── WebGL Context Loss Guard ─────────────────────────────────────
   const onContextLost = (e: Event) => {
     e.preventDefault();
     stopLoop();
   };
   canvas.addEventListener("webglcontextlost", onContextLost);
 
-  // ── Observers (Resize, Intersection, Theme, Motion, Visibility) ──
   const onLayoutChange = () => {
     layoutDirty = true;
+    if (reducedMotion) {
+      updateClearRect();
+      rebuildTypographyMask(true);
+      renderSingleFrame(performance.now());
+    }
+  };
+  const onWindowResize = () => {
+    syncSize();
     if (reducedMotion) renderSingleFrame(performance.now());
   };
   window.addEventListener("scroll", onLayoutChange, { passive: true });
-  window.addEventListener("resize", syncSize, { passive: true });
+  window.addEventListener("resize", onWindowResize, { passive: true });
 
   let resizeObserver: ResizeObserver | null = null;
   if (typeof ResizeObserver !== "undefined") {
@@ -966,9 +1529,7 @@ export function mountHeroAscii(
   const stopMotionObserver = observeReducedMotion((nextReduced) => {
     reducedMotion = nextReduced;
     if (reducedMotion) {
-      simTimeSec = STATIC_REDUCED_MOTION_TIME_SEC;
-      sceneA = sceneB;
-      sceneBlend = 1;
+      simTimeSec = STATIC_REDUCED_MOTION_SEC;
       stopLoop();
       renderSingleFrame(performance.now());
     } else {
@@ -976,58 +1537,98 @@ export function mountHeroAscii(
     }
   });
 
-  // ── Public API Methods ───────────────────────────────────────────
-  const setScene = (scene: AsciiScene) => {
-    if (destroyed) return;
-    const nextIdx = SCENE_INDEX[scene];
-    if (nextIdx === undefined) return;
-    if (nextIdx === sceneB) return;
-
+  // ── Public Handle Methods ─────────────────────────────────────────
+  const setMode = (mode: HeroFluidMode) => {
+    if (destroyed || mode === currentMode) return;
+    currentMode = mode;
+    if (mode === "vortex" && !reducedMotion) {
+      splatVelocity(simW * 0.35, simH * typographyCenterY, 0, -14, 6.0, 0.7);
+      splatVelocity(simW * 0.65, simH * typographyCenterY, 0, 14, 6.0, 0.7);
+    }
     if (reducedMotion) {
-      sceneA = nextIdx;
-      sceneB = nextIdx;
-      sceneBlend = 1;
       renderSingleFrame(performance.now());
     } else {
-      if (sceneBlend > 0.5) {
-        sceneA = sceneB;
-      }
-      sceneB = nextIdx;
-      sceneBlend = 0;
       ensureLoopRunning();
     }
   };
 
   const setCharset = (charset: AsciiCharset) => {
-    if (destroyed) return;
+    if (destroyed || charset === currentCharset) return;
     currentCharset = charset;
     if (reducedMotion) {
       renderSingleFrame(performance.now());
     }
   };
 
-  const triggerShockwave = (normX: number, normY: number) => {
+  const setDisplayText = (text: string) => {
+    if (destroyed) return;
+    const normalized =
+      text.trim().length > 0 ? text.trim().toUpperCase().slice(0, 20) : DEFAULT_DISPLAY_TEXT;
+    if (normalized === currentText) return;
+    currentText = normalized;
+    rebuildTypographyMask(reducedMotion);
+    if (reducedMotion) {
+      renderSingleFrame(performance.now());
+    }
+  };
+
+  const resetDisplayText = () => {
+    setDisplayText(options.initialText ?? DEFAULT_DISPLAY_TEXT);
+  };
+
+  const triggerBurst = (normX: number, normY: number) => {
     if (destroyed) return;
     const now = performance.now();
-    if (now - lastDragEndMs < 80) return;
-
     const nx = clamp01(normX);
     const ny = clamp01(normY);
-    if (now - lastShockMs < 60 && Math.hypot(nx - lastShockX, ny - lastShockY) < 0.03) {
+
+    if (now - lastBurstMs < 90 && Math.hypot(nx - lastBurstX, ny - lastBurstY) < 0.04) {
       return;
     }
-    lastShockMs = now;
-    lastShockX = nx;
-    lastShockY = ny;
+    lastBurstMs = now;
+    lastBurstX = nx;
+    lastBurstY = ny;
 
-    const slot = shockwaves[shockwaveCursor];
+    if (!reducedMotion) {
+      const gx = nx * simW;
+      const gy = ny * simH;
+      const rad = 11.5;
+      const minX = Math.max(1, Math.floor(gx - rad));
+      const maxX = Math.min(simW - 2, Math.ceil(gx + rad));
+      const minY = Math.max(1, Math.floor(gy - rad));
+      const maxY = Math.min(simH - 2, Math.ceil(gy + rad));
+
+      for (let y = minY; y <= maxY; y++) {
+        const dy = y - gy;
+        const row = y * simW;
+        for (let x = minX; x <= maxX; x++) {
+          const dx = x - gx;
+          const dist = Math.hypot(dx, dy);
+          if (dist > rad) continue;
+          const w = Math.exp(-(dist * dist) / 26);
+          const invD = dist > 0.05 ? 1 / dist : 0;
+          const radialX = dx * invD * 30 * w;
+          const radialY = dy * invD * 30 * w;
+          const swirlX = -dy * 1.4 * w;
+          const swirlY = dx * 1.4 * w;
+          const idx = row + x;
+          velU[idx] = clamp((velU[idx] ?? 0) + radialX + swirlX, -42, 42);
+          velV[idx] = clamp((velV[idx] ?? 0) + radialY + swirlY, -42, 42);
+          energy[idx] = clamp((energy[idx] ?? 0) + 1.15 * w, 0, 1.5);
+        }
+      }
+    }
+
+    const slot = shockRings[shockCursor];
     if (slot) {
       slot.x = nx;
       slot.y = ny;
-      slot.startMs = reducedMotion ? now - SHOCKWAVE_DURATION_MS * 0.25 : now;
+      slot.startMs = reducedMotion ? now - BURST_DURATION_MS * 0.24 : now;
       slot.active = true;
     }
-    shockwaveCursor = (shockwaveCursor + 1) % 4;
+    shockCursor = (shockCursor + 1) % 4;
+
+    playBurst();
 
     if (reducedMotion) {
       renderSingleFrame(now);
@@ -1039,14 +1640,11 @@ export function mountHeroAscii(
     destroyed = true;
     stopLoop();
 
-    canvas.removeEventListener("pointerdown", onCanvasPointerDown);
     canvas.removeEventListener("pointerleave", onCanvasPointerLeave);
     canvas.removeEventListener("webglcontextlost", onContextLost);
     window.removeEventListener("pointermove", onWindowPointerMove);
-    window.removeEventListener("pointerup", onWindowPointerUp);
-    window.removeEventListener("pointercancel", onWindowPointerUp);
     window.removeEventListener("scroll", onLayoutChange);
-    window.removeEventListener("resize", syncSize);
+    window.removeEventListener("resize", onWindowResize);
     document.removeEventListener("visibilitychange", onVisibilityChange);
 
     resizeObserver?.disconnect();
@@ -1054,32 +1652,44 @@ export function mountHeroAscii(
     stopThemeObserver();
     stopMotionObserver();
 
+    velU = new Float32Array(0);
+    velV = new Float32Array(0);
+    velUPrev = new Float32Array(0);
+    velVPrev = new Float32Array(0);
+    ink = new Float32Array(0);
+    inkPrev = new Float32Array(0);
+    energy = new Float32Array(0);
+    energyPrev = new Float32Array(0);
+
     backend?.destroy();
     backend = null;
   };
 
-  // Immediate first paint before document.fonts.ready resolves
+  // Immediate first paint before fonts finish loading
   syncSize();
   renderSingleFrame(performance.now());
   if (!reducedMotion) {
     ensureLoopRunning();
   }
 
-  // Refresh glyph atlas once Geist Mono finishes loading
+  // Refresh glyph atlas & General Sans typography mask once fonts resolve
   if (typeof document !== "undefined" && document.fonts?.ready) {
     void document.fonts.ready.then(() => {
       if (destroyed) return;
       buildGlyphAtlasCanvas(atlasCanvas);
       backend?.uploadAtlas(atlasCanvas);
-      layoutDirty = true;
+      updateClearRect();
+      rebuildTypographyMask(reducedMotion || simTimeSec < 0.35);
       renderSingleFrame(performance.now());
     });
   }
 
   return {
-    setScene,
+    setMode,
     setCharset,
-    triggerShockwave,
+    setDisplayText,
+    resetDisplayText,
+    triggerBurst,
     destroy,
   };
 }

@@ -1,303 +1,226 @@
 ---
 import { getCollection } from "astro:content";
 import Section from "./Section.astro";
-import type { ProjectSpecimenId } from "../lib/project-ascii";
 
 const projects = (await getCollection("projects")).sort(
   (a, b) => a.data.order - b.data.order,
 );
 
-const VALID_SPECIMENS = new Set<ProjectSpecimenId>(["nadir", "canopy", "obscurafy"]);
+type ExhibitId = "nadir" | "canopy" | "obscurafy";
 
-function toSpecimenId(rawId: string): ProjectSpecimenId {
+const VALID_EXHIBITS = new Set<ExhibitId>(["nadir", "canopy", "obscurafy"]);
+
+function toExhibitId(rawId: string): ExhibitId {
   const normalized = rawId.replace(/\.md$/i, "").toLowerCase();
-  if (VALID_SPECIMENS.has(normalized as ProjectSpecimenId)) {
-    return normalized as ProjectSpecimenId;
+  if (VALID_EXHIBITS.has(normalized as ExhibitId)) {
+    return normalized as ExhibitId;
   }
   return "nadir";
 }
 
-const specimens = projects.map((project) => ({
-  id: toSpecimenId(project.id),
-  title: project.data.title,
-}));
-
-const initialSpecimen = specimens[0] ?? {
-  id: "nadir" as ProjectSpecimenId,
-  title: "Nadir",
+const EXHIBIT_META: Record<ExhibitId, { hint: string; initialStatus: string }> = {
+  nadir: {
+    hint: "Drag to spin · Click nodes",
+    initialStatus: "Orbit active",
+  },
+  canopy: {
+    hint: "Drag to stir wind",
+    initialStatus: "1004 hPa · ambient",
+  },
+  obscurafy: {
+    hint: "Sweep to redact · Click to lock",
+    initialStatus: "Scanner active",
+  },
 };
 ---
 
 <Section id="work" title="Selected work" meta={`${projects.length} projects`}>
-  <div class="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_minmax(320px,400px)] lg:items-start">
-    <ul class="flex flex-col">
-      {
-        projects.map((project, idx) => {
-          const { title, description, tags, award, code, demo } = project.data;
-          const href = demo ?? code ?? "#";
-          const specimenId = toSpecimenId(project.id);
-          const [awardPrize, awardEvent] = award
-            ? award.split("·").map((part) => part.trim())
-            : [];
-          return (
-            <li class="reveal border-b border-line last:border-b-0">
+  <div class="flex flex-col divide-y divide-line">
+    {
+      projects.map((project, idx) => {
+        const { title, description, tags, award, code, demo } = project.data;
+        const href = demo ?? code ?? "#";
+        const exhibitId = toExhibitId(project.id);
+        const meta = EXHIBIT_META[exhibitId];
+        const isReversed = idx % 2 === 1;
+        const [awardPrize, awardEvent] = award
+          ? award.split("·").map((part) => part.trim())
+          : [];
+
+        return (
+          <article
+            class:list={[
+              "reveal grid grid-cols-1 items-center gap-8 py-12 first:pt-2 last:pb-2 lg:gap-12 lg:py-16",
+              isReversed
+                ? "lg:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.35fr)]"
+                : "lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.9fr)]",
+            ]}
+          >
+            <div class:list={["min-w-0", isReversed && "lg:order-2"]}>
+              <div class="work-exhibit relative overflow-hidden rounded-lg border border-line bg-surface">
+                <canvas
+                  class="block aspect-[16/10] w-full min-h-[260px] select-none"
+                  style="touch-action: pan-y;"
+                  data-exhibit={exhibitId}
+                  aria-hidden="true"
+                />
+                <div class="work-exhibit-bar flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1.5 border-t border-line px-4 py-3 font-mono text-sm text-muted">
+                  <span>{meta.hint}</span>
+                  <span
+                    data-exhibit-status={exhibitId}
+                    class="text-ink"
+                    aria-live="polite"
+                  >
+                    {meta.initialStatus}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class:list={[
+                "flex min-w-0 flex-col items-start",
+                isReversed && "lg:order-1",
+              ]}
+            >
+              <h3 class="font-sans text-heading font-semibold leading-[1.15] tracking-[-0.02em] text-ink">
+                {title}
+              </h3>
+              <p class="mt-4 max-w-[46ch] font-sans text-body leading-relaxed text-muted">
+                {description}
+              </p>
+              <p class="mt-4 font-mono text-sm text-muted">
+                {tags.join(" · ")}
+              </p>
+              {awardPrize && (
+                <p class="mt-3 font-mono text-sm leading-snug">
+                  <span class="font-medium text-ink">{awardPrize}</span>
+                  {awardEvent && <span class="text-muted"> · {awardEvent}</span>}
+                </p>
+              )}
               <a
                 href={href}
                 target="_blank"
-                rel="noopener"
-                data-project-specimen={specimenId}
-                data-active={idx === 0 ? "true" : "false"}
-                class="work-row group relative block rounded-md px-3 py-6"
+                rel="noopener noreferrer"
+                class="work-code-link mt-6 inline-flex items-center gap-1.5 font-mono text-sm font-medium text-ink hover:text-accent"
               >
-                <h3 class="work-title inline-flex items-center gap-2 font-sans text-body font-semibold tracking-[-0.01em] text-ink">
-                  {title}
-                  <span class="work-arrow text-accent" aria-hidden="true">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                      <path d="M7 17L17 7M17 7H7M17 7V17" />
-                    </svg>
-                  </span>
-                </h3>
-                <p class="mt-2 max-w-[58ch] font-sans text-body leading-relaxed text-muted">
-                  {description}
-                </p>
-                <p class="mt-3 font-mono text-sm text-muted">
-                  {tags.join(" · ")}
-                </p>
-                {awardPrize && (
-                  <p class="mt-2 font-mono text-sm leading-snug">
-                    <span class="font-medium text-ink">{awardPrize}</span>
-                    {awardEvent && <span class="text-muted"> · {awardEvent}</span>}
-                  </p>
-                )}
+                <span class="work-code-label">View code</span>
+                <span class="work-code-arrow text-accent" aria-hidden="true">↗</span>
               </a>
-            </li>
-          );
-        })
-      }
-    </ul>
-
-    <aside aria-label="Project ASCII specimen" class="lg:sticky lg:top-28">
-      <div class="overflow-hidden rounded-md border border-line bg-surface">
-        <canvas
-          id="work-ascii-canvas"
-          class="block aspect-[4/3] w-full"
-          aria-hidden="true"
-        ></canvas>
-
-        <div class="flex flex-col gap-3 border-t border-line bg-paper px-4 py-3.5">
-          <div class="flex items-baseline justify-between gap-3">
-            <span
-              id="work-specimen-title"
-              class="font-sans text-body font-semibold text-ink"
-            >
-              {initialSpecimen.title}
-            </span>
-          </div>
-
-          <div
-            role="radiogroup"
-            aria-label="Select project specimen"
-            class="flex items-center gap-1 rounded-md border border-line bg-surface p-1"
-          >
-            {
-              specimens.map((specimen, idx) => (
-                <label class="specimen-option relative flex-auto cursor-pointer">
-                  <input
-                    type="radio"
-                    name="work-specimen"
-                    value={specimen.id}
-                    checked={idx === 0}
-                    data-specimen-radio={specimen.id}
-                    data-specimen-title={specimen.title}
-                    class="specimen-input sr-only"
-                  />
-                  <span class="specimen-pill block rounded-[4px] px-2.5 py-1.5 text-center font-mono text-sm font-medium text-muted">
-                    {specimen.title}
-                  </span>
-                </label>
-              ))
-            }
-          </div>
-        </div>
-      </div>
-    </aside>
+            </div>
+          </article>
+        );
+      })
+    }
   </div>
 </Section>
 
 <script>
-  import { mountProjectAscii, type ProjectSpecimenId } from "../lib/project-ascii";
+  import {
+    mountNadirExhibit,
+    mountCanopyExhibit,
+    mountObscurafyExhibit,
+    type DestroyableHandle,
+  } from "../lib/project-ascii";
 
-  const canvas = document.getElementById("work-ascii-canvas");
-  const titleEl = document.getElementById("work-specimen-title");
-  const rows = Array.from(
-    document.querySelectorAll<HTMLElement>("[data-project-specimen]"),
+  const canvases = Array.from(
+    document.querySelectorAll<HTMLCanvasElement>("[data-exhibit]"),
   );
-  const radios = Array.from(
-    document.querySelectorAll<HTMLInputElement>("[data-specimen-radio]"),
-  );
+  const handles: DestroyableHandle[] = [];
 
-  const validIds = new Set<ProjectSpecimenId>(["nadir", "canopy", "obscurafy"]);
-  const firstRadio = radios[0]?.dataset.specimenRadio;
-  let activeId: ProjectSpecimenId =
-    firstRadio && validIds.has(firstRadio as ProjectSpecimenId)
-      ? (firstRadio as ProjectSpecimenId)
-      : "nadir";
+  for (const canvas of canvases) {
+    const id = canvas.dataset.exhibit;
+    if (id !== "nadir" && id !== "canopy" && id !== "obscurafy") continue;
 
-  let handle: ReturnType<typeof mountProjectAscii> | null = null;
-  if (canvas instanceof HTMLCanvasElement) {
+    const statusEl = document.querySelector<HTMLElement>(
+      `[data-exhibit-status="${id}"]`,
+    );
+    const onStatus = (status: string) => {
+      if (statusEl) {
+        statusEl.textContent = status;
+      }
+    };
+
     try {
-      handle = mountProjectAscii(canvas, activeId);
-      window.addEventListener("pagehide", () => handle?.destroy(), { once: true });
+      if (id === "nadir") {
+        handles.push(mountNadirExhibit(canvas, { onStatus }));
+      } else if (id === "canopy") {
+        handles.push(mountCanopyExhibit(canvas, { onStatus }));
+      } else {
+        handles.push(mountObscurafyExhibit(canvas, { onStatus }));
+      }
     } catch {
-      // Keep project list and selector usable if WebGL initialization fails.
+      // Keep project descriptions and links usable if canvas initialization fails.
     }
   }
 
-  function selectSpecimen(id: ProjectSpecimenId) {
-    if (!validIds.has(id) || id === activeId) return;
-    activeId = id;
-
-    rows.forEach((row) => {
-      row.dataset.active = row.dataset.projectSpecimen === id ? "true" : "false";
-    });
-
-    let nextTitle = "";
-    radios.forEach((radio) => {
-      const match = radio.dataset.specimenRadio === id;
-      radio.checked = match;
-      if (match) {
-        nextTitle = radio.dataset.specimenTitle ?? "";
-      }
-    });
-
-    if (titleEl && nextTitle) {
-      titleEl.textContent = nextTitle;
-    }
-
-    handle?.setProject(id);
+  if (handles.length > 0) {
+    window.addEventListener(
+      "pagehide",
+      () => {
+        handles.forEach((handle) => handle.destroy());
+      },
+      { once: true },
+    );
   }
-
-  rows.forEach((row) => {
-    const id = row.dataset.projectSpecimen as ProjectSpecimenId | undefined;
-    if (!id || !validIds.has(id)) return;
-    row.addEventListener("mouseenter", () => selectSpecimen(id));
-    row.addEventListener("focusin", () => selectSpecimen(id));
-  });
-
-  radios.forEach((radio) => {
-    radio.addEventListener("change", () => {
-      if (!radio.checked) return;
-      const id = radio.dataset.specimenRadio as ProjectSpecimenId | undefined;
-      if (id && validIds.has(id)) {
-        selectSpecimen(id);
-      }
-    });
-  });
 </script>
 
 <style>
-  .work-row {
+  .work-exhibit {
     transition:
-      transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-      box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-      background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .work-row::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 1.5rem;
-    bottom: 1.5rem;
-    width: 2px;
-    background: var(--accent);
-    transform: scaleY(0);
-    transform-origin: top center;
-    opacity: 0;
-    transition:
-      transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-      opacity 0.18s ease;
-  }
-  .work-row[data-active="true"] {
-    background-color: var(--surface);
-  }
-  .work-row[data-active="true"]::before,
-  .work-row:hover::before,
-  .work-row:focus-visible::before {
-    transform: scaleY(1);
-    opacity: 1;
-  }
-  .work-row:hover {
-    transform: translateY(-2px);
+  .work-exhibit:hover {
+    border-color: color-mix(in oklab, var(--accent) 42%, var(--line));
     box-shadow: var(--hover-shadow);
-    background-color: var(--surface);
   }
 
-  .work-title {
-    position: relative;
+  .work-exhibit-bar {
+    background-color: color-mix(in oklab, var(--paper) 82%, transparent);
+  }
+
+  .work-code-link {
     transition: color 0.18s ease;
   }
-  .work-title::after {
+  .work-code-label {
+    position: relative;
+  }
+  .work-code-label::after {
     content: "";
     position: absolute;
     left: 0;
     bottom: -3px;
-    height: 2px;
+    height: 1.5px;
     width: 100%;
     background: var(--accent);
     clip-path: inset(0 100% 0 0);
-    transition: clip-path 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: clip-path 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .work-row:hover .work-title,
-  .work-row:focus-visible .work-title {
-    color: var(--accent);
-  }
-  .work-row:hover .work-title::after,
-  .work-row:focus-visible .work-title::after {
+  .work-code-link:hover .work-code-label::after,
+  .work-code-link:focus-visible .work-code-label::after {
     clip-path: inset(0 0 0 0);
   }
 
-  .work-arrow {
-    opacity: 0;
-    transform: translateX(-6px);
-    transition:
-      opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-      transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  .work-code-arrow {
+    display: inline-block;
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .work-row:hover .work-arrow,
-  .work-row:focus-visible .work-arrow {
-    opacity: 1;
-    transform: translateX(0);
-  }
-
-  .specimen-pill {
-    transition:
-      background-color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
-      color 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .specimen-option:hover .specimen-pill {
-    color: var(--ink);
-  }
-  .specimen-input:checked + .specimen-pill {
-    background-color: var(--ink);
-    color: var(--paper);
-  }
-  .specimen-input:focus-visible + .specimen-pill {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
+  .work-code-link:hover .work-code-arrow,
+  .work-code-link:focus-visible .work-code-arrow {
+    transform: translate(2px, -2px);
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .work-row,
-    .work-row::before,
-    .work-title,
-    .work-title::after,
-    .work-arrow,
-    .specimen-pill {
-      transition: color 0.18s ease, background-color 0.18s ease;
-      transform: none !important;
+    .work-exhibit,
+    .work-code-link,
+    .work-code-label::after,
+    .work-code-arrow {
+      transition: color 0.18s ease, border-color 0.18s ease;
     }
-    .work-arrow {
-      opacity: 1;
+    .work-code-link:hover .work-code-arrow,
+    .work-code-link:focus-visible .work-code-arrow {
+      transform: none;
     }
   }
 </style>

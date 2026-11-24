@@ -8,100 +8,100 @@ import { SITE, LINKS } from "../data/site";
   class="hero-section relative min-h-[100svh] w-full overflow-hidden"
 >
   <canvas
-    id="hero-ascii-canvas"
+    id="hero-fluid-canvas"
     class="absolute inset-0 h-full w-full select-none"
     style="touch-action: pan-y;"
     aria-hidden="true"
   ></canvas>
 
-  <div
-    class="pointer-events-none relative z-10 mx-auto flex min-h-[100svh] w-full max-w-6xl flex-col justify-end gap-8 px-6 pb-8 pt-24 md:px-10 md:pb-12 lg:flex-row lg:items-end lg:justify-between"
-  >
-    <div id="hero-copy" class="hero-copy pointer-events-auto max-w-2xl">
-      <h1
-        class="font-sans text-[clamp(3.75rem,8.5vw,7.25rem)] font-semibold leading-[0.94] tracking-[-0.04em] text-ink"
-      >
-        {SITE.name}
-      </h1>
+  <h1 class="sr-only">{SITE.name}</h1>
 
-      <p
-        class="mt-4 max-w-[44ch] font-sans text-body leading-relaxed text-muted"
-      >
-        {SITE.tagline}
+  <noscript>
+    <div class="pointer-events-none absolute inset-x-0 top-[24vh] z-10 flex justify-center px-6 text-center">
+      <p class="font-sans text-[clamp(3.5rem,12vw,8.5rem)] font-semibold uppercase leading-[0.9] tracking-[-0.04em] text-ink">
+        IAN PANG
       </p>
-
-      <div class="mt-7">
-        <a
-          href={LINKS.resume}
-          target="_blank"
-          rel="noopener"
-          class="btn-primary group inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3 font-sans text-body font-medium text-paper"
-        >
-          View résumé
-          <svg
-            class="btn-arrow group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.2"
-            aria-hidden="true"
-          >
-            <path d="M7 17L17 7M17 7H7M17 7V17" />
-          </svg>
-        </a>
-      </div>
     </div>
+  </noscript>
 
-    <aside
-      data-ascii-dock
-      aria-label="ASCII canvas controls"
-      class="ascii-dock pointer-events-auto w-full max-w-full self-start rounded-xl border border-line p-3 sm:w-auto lg:self-end"
+  <div
+    class="pointer-events-none relative z-10 mx-auto flex min-h-[100svh] w-full max-w-6xl flex-col justify-end px-6 pb-8 pt-24 md:px-10 md:pb-12"
+  >
+    <div
+      id="hero-horizon"
+      class="flex w-full flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"
     >
-      <div class="flex flex-col gap-2.5">
-        <div class="segmented-group" role="radiogroup" aria-label="Scene">
-          <label class="segmented-option">
-            <input
-              type="radio"
-              name="hero-scene"
-              value="ferro"
-              class="segmented-input"
-              checked
-            />
-            <span class="segmented-label">Ferro</span>
-          </label>
-          <label class="segmented-option">
-            <input
-              type="radio"
-              name="hero-scene"
-              value="terrain"
-              class="segmented-input"
-            />
-            <span class="segmented-label">Terrain</span>
-          </label>
-          <label class="segmented-option">
-            <input
-              type="radio"
-              name="hero-scene"
-              value="orbit"
-              class="segmented-input"
-            />
-            <span class="segmented-label">Orbit</span>
-          </label>
-          <label class="segmented-option">
-            <input
-              type="radio"
-              name="hero-scene"
-              value="flow"
-              class="segmented-input"
-            />
-            <span class="segmented-label">Flow</span>
-          </label>
+      <div id="hero-copy" class="hero-copy pointer-events-auto max-w-xl">
+        <p class="max-w-[46ch] font-sans text-body leading-relaxed text-muted">
+          {SITE.tagline}
+        </p>
+
+        <div class="mt-5">
+          <a
+            href={LINKS.resume}
+            target="_blank"
+            rel="noopener"
+            class="btn-primary group inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3 font-sans text-body font-medium text-paper"
+          >
+            View résumé
+            <svg
+              class="btn-arrow group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              aria-hidden="true"
+            >
+              <path d="M7 17L17 7M17 7H7M17 7V17" />
+            </svg>
+          </a>
         </div>
 
-        <div class="flex flex-wrap items-center justify-between gap-2.5">
-          <div class="segmented-group" role="radiogroup" aria-label="Character set">
+        <p class="mt-4 font-mono text-sm text-muted">
+          Slice · Click · Type
+        </p>
+      </div>
+
+      <aside
+        data-ascii-dock
+        aria-label="Fluid ASCII simulation controls"
+        class="ascii-dock pointer-events-auto w-full max-w-full self-start rounded-xl border border-line p-2.5 sm:w-auto sm:p-3 lg:self-end"
+      >
+        <div class="flex flex-col gap-2">
+          <div class="segmented-group" role="radiogroup" aria-label="Simulation mode">
+            <label class="segmented-option">
+              <input
+                type="radio"
+                name="hero-mode"
+                value="shatter"
+                class="segmented-input"
+                checked
+              />
+              <span class="segmented-label">Shatter</span>
+            </label>
+            <label class="segmented-option">
+              <input
+                type="radio"
+                name="hero-mode"
+                value="topography"
+                class="segmented-input"
+              />
+              <span class="segmented-label">Topography</span>
+            </label>
+            <label class="segmented-option">
+              <input
+                type="radio"
+                name="hero-mode"
+                value="vortex"
+                class="segmented-input"
+              />
+              <span class="segmented-label">Vortex</span>
+            </label>
+          </div>
+
+          <div class="segmented-group self-start" role="radiogroup" aria-label="Character set">
             <label class="segmented-option">
               <input
                 type="radio"
@@ -132,29 +132,29 @@ import { SITE, LINKS } from "../data/site";
             </label>
           </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </div>
   </div>
 </section>
 
 <style>
   .btn-primary {
     transition:
-      background-color 0.18s cubic-bezier(0.22, 1, 0.36, 1),
-      transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+      transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .btn-primary:hover {
-    background-color: var(--accent);
     transform: translateY(-1px);
+    opacity: 0.88;
   }
   .btn-arrow {
     transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .ascii-dock {
-    background-color: color-mix(in oklab, var(--paper) 88%, transparent);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    background-color: color-mix(in oklab, var(--paper) 86%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -164,6 +164,7 @@ import { SITE, LINKS } from "../data/site";
     }
     .btn-primary:hover {
       transform: none;
+      box-shadow: none;
     }
   }
 </style>
@@ -172,15 +173,16 @@ import { SITE, LINKS } from "../data/site";
   import {
     mountHeroAscii,
     type AsciiCharset,
-    type AsciiScene,
     type HeroAsciiHandle,
+    type HeroFluidMode,
   } from "../lib/ascii-engine";
+  import { playTick } from "../lib/synth-audio";
 
   const heroSection = document.getElementById("hero");
-  const canvas = document.getElementById("hero-ascii-canvas");
-  const clearElement = document.getElementById("hero-copy");
-  const sceneInputs = Array.from(
-    document.querySelectorAll<HTMLInputElement>('input[name="hero-scene"]'),
+  const canvas = document.getElementById("hero-fluid-canvas");
+  const clearElement = document.getElementById("hero-horizon");
+  const modeInputs = Array.from(
+    document.querySelectorAll<HTMLInputElement>('input[name="hero-mode"]'),
   );
   const charsetInputs = Array.from(
     document.querySelectorAll<HTMLInputElement>('input[name="hero-charset"]'),
@@ -189,9 +191,9 @@ import { SITE, LINKS } from "../data/site";
   let engine: HeroAsciiHandle | null = null;
 
   if (canvas instanceof HTMLCanvasElement) {
-    const initialScene =
-      (sceneInputs.find((input) => input.checked)?.value as AsciiScene) ??
-      "ferro";
+    const initialMode =
+      (modeInputs.find((input) => input.checked)?.value as HeroFluidMode) ??
+      "shatter";
     const initialCharset =
       (charsetInputs.find((input) => input.checked)?.value as AsciiCharset) ??
       "ascii";
@@ -199,29 +201,19 @@ import { SITE, LINKS } from "../data/site";
     try {
       engine = mountHeroAscii(canvas, {
         clearElement,
-        initialScene,
+        initialMode,
         initialCharset,
       });
     } catch {
-      // Leave static hero copy visible if WebGL/2D setup fails.
+      // Keep static fallback controls accessible if canvas setup fails.
     }
-
-    window.addEventListener(
-      "pagehide",
-      (event) => {
-        if (!event.persisted) {
-          engine?.destroy();
-          engine = null;
-        }
-      },
-      { once: true },
-    );
   }
 
-  sceneInputs.forEach((input) => {
+  modeInputs.forEach((input) => {
     input.addEventListener("change", () => {
       if (!engine || !input.checked) return;
-      engine.setScene(input.value as AsciiScene);
+      engine.setMode(input.value as HeroFluidMode);
+      playTick();
     });
   });
 
@@ -229,6 +221,7 @@ import { SITE, LINKS } from "../data/site";
     input.addEventListener("change", () => {
       if (!engine || !input.checked) return;
       engine.setCharset(input.value as AsciiCharset);
+      playTick();
     });
   });
 
@@ -263,7 +256,96 @@ import { SITE, LINKS } from "../data/site";
       if (rect.width <= 0 || rect.height <= 0) return;
       const normX = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
       const normY = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
-      engine.triggerShockwave(normX, normY);
+      engine.triggerBurst(normX, normY);
     });
   }
+
+  // ── Live keyboard typography injection ────────────────────────────
+  const MAX_TYPED_CHARS = 16;
+  const RESET_DELAY_MS = 6000;
+  let typedWord = "";
+  let resetTimer: number | null = null;
+
+  function clearResetTimer() {
+    if (resetTimer !== null) {
+      window.clearTimeout(resetTimer);
+      resetTimer = null;
+    }
+  }
+
+  function scheduleReset() {
+    clearResetTimer();
+    resetTimer = window.setTimeout(() => {
+      typedWord = "";
+      resetTimer = null;
+      engine?.resetDisplayText();
+    }, RESET_DELAY_MS);
+  }
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (!engine) return;
+    if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.key === "`" || event.code === "Backquote") return;
+
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      (active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.tagName === "SELECT" ||
+        active.isContentEditable)
+    ) {
+      return;
+    }
+
+    if (event.key === "Escape") {
+      clearResetTimer();
+      typedWord = "";
+      engine.resetDisplayText();
+      return;
+    }
+
+    if (event.key === "Backspace") {
+      if (typedWord.length === 0) return;
+      event.preventDefault();
+      typedWord = typedWord.slice(0, -1);
+      if (typedWord.length === 0) {
+        clearResetTimer();
+        engine.resetDisplayText();
+      } else {
+        engine.setDisplayText(typedWord);
+        scheduleReset();
+      }
+      playTick();
+      return;
+    }
+
+    if (/^[A-Za-z0-9 ]$/.test(event.key)) {
+      // Preserve normal Spacebar scrolling when no word is being typed yet.
+      if (event.key === " " && typedWord.length === 0) return;
+      if (event.key === " ") event.preventDefault();
+
+      if (typedWord.length < MAX_TYPED_CHARS) {
+        typedWord += event.key;
+        engine.setDisplayText(typedWord);
+        playTick();
+      }
+      scheduleReset();
+    }
+  };
+
+  window.addEventListener("keydown", onKeyDown);
+
+  window.addEventListener(
+    "pagehide",
+    (event) => {
+      if (!event.persisted) {
+        clearResetTimer();
+        window.removeEventListener("keydown", onKeyDown);
+        engine?.destroy();
+        engine = null;
+      }
+    },
+    { once: true },
+  );
 </script>
