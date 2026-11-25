@@ -18,6 +18,16 @@ export interface OscilloscopeHandle {
   destroy: () => void;
 }
 
+export interface StackFabricColumn {
+  label: string;
+  items: readonly string[];
+}
+
+export interface StackFabricHandle {
+  setActiveColumn: (colIdx: number, itemLabel?: string | null) => void;
+  destroy: () => void;
+}
+
 type ThemeColors = ReturnType<typeof resolveThemeColors>;
 type ThemeRgb = ThemeColors["paper"];
 
@@ -287,7 +297,7 @@ function mountCanvasLoop(
   // Attach directly to the container with content-visibility: auto because
   // contentvisibilityautostatechange does not bubble in some browsers.
   const cvTarget = canvas.closest<HTMLElement>(
-    ".work-exhibit, .exp-wave-container, .horizon-wave",
+    ".work-exhibit, .exp-wave-container, .stack-fabric-container, .horizon-wave",
   );
   const supportsContentVisibility =
     typeof document !== "undefined" &&
@@ -1702,6 +1712,276 @@ export function mountHorizonAscii(canvas: HTMLCanvasElement): DestroyableHandle 
   });
 
   return {
+    destroy: () => controller.destroy(),
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* 6. STACK FABRIC: 3-Hub Monochrome ASCII Topology for Technical Stack       */
+/* -------------------------------------------------------------------------- */
+
+const STACK_COMPACT_LABELS = ["Languages", "ML / sys", "Backend"] as const;
+
+const HUB_SPRITES_WIDE: readonly (readonly string[])[] = [
+  [" .---. ", "/ { } \\", "|[fn:]|", "\\ <*> /", " '---' "],
+  [" ./^\\. ", "/  +  \\", "|<o*o>|", "\\  +  /", " '\\v/' "],
+  [" +===+ ", "/|:::|\\", "|[===]|", "\\|:::|/", " +===+ "],
+];
+
+const HUB_SPRITES_COMPACT: readonly (readonly string[])[] = [
+  [".---.", "{   }", "[fn:]", "< * >", "'---'"],
+  ["./^\\.", "/ + \\", "<o*o>", "\\ + /", "'\\v/'"],
+  ["+===+", "|:::|", "[===]", "|:::|", "+===+"],
+];
+
+export function mountStackFabric(
+  canvas: HTMLCanvasElement,
+  columns: readonly StackFabricColumn[],
+): StackFabricHandle {
+  let externalCol = -1;
+  let externalItem: string | null = null;
+  let pointerCol = -1;
+  const hubIntensity = [0.65, 0.35, 0.35];
+
+  const resolveColumnIdx = (normX: number, hubFracs: readonly [number, number, number]): number => {
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const d = Math.abs(normX - hubFracs[i]!);
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  };
+
+  const controller = mountCanvasLoop(
+    canvas,
+    (ctx, state) => {
+      const { widthCss, heightCss, timeSec, theme, reducedMotion, pointerX, pointerY, pointerActive } =
+        state;
+      const isNarrow = widthCss < 520;
+      const hubFracs: readonly [number, number, number] = isNarrow
+        ? [0.18, 0.5, 0.82]
+        : [1 / 6, 3 / 6, 5 / 6];
+
+      const padX = isNarrow ? 10 : 18;
+      const usableW = Math.max(120, widthCss - padX * 2);
+      const cellW = isNarrow ? 8.2 : 10;
+      const cols = Math.max(32, Math.floor(usableW / cellW));
+      const actualCellW = usableW / cols;
+
+      const captionY = 18;
+      const gridTop = 32;
+      const gridH = Math.max(64, heightCss - gridTop - 10);
+      const rows = 5;
+      const cellH = gridH / rows;
+
+      ctx.font = `500 ${HUD_FONT_PX}px ${CHARSET_FONT_STACK}`;
+      ctx.textBaseline = "middle";
+
+      // Top pillar labels aligned to the three stack columns
+      ctx.textAlign = "center";
+      for (let i = 0; i < 3; i++) {
+        const cx = hubFracs[i]! * widthCss;
+        const focus = hubIntensity[i] ?? 0.35;
+        const fullLabel = columns[i]?.label || STACK_COMPACT_LABELS[i]!;
+        let labelText = isNarrow ? (STACK_COMPACT_LABELS[i] ?? fullLabel) : fullLabel;
+        if (!isNarrow && widthCss >= 640 && externalCol === i && externalItem) {
+          labelText = `${fullLabel} · ${externalItem}`;
+        }
+
+        const labelColor = mixRgb(theme.muted, theme.ink, clamp01(0.25 + focus * 0.75));
+        ctx.fillStyle = rgbToCss(labelColor, 0.76 + focus * 0.24);
+        ctx.fillText(labelText, cx, captionY);
+      }
+
+      const hubCols = [
+        clamp(Math.round(((hubFracs[0]! * widthCss - padX) / usableW) * (cols - 1)), 4, cols - 5),
+        clamp(Math.round(((hubFracs[1]! * widthCss - padX) / usableW) * (cols - 1)), 4, cols - 5),
+        clamp(Math.round(((hubFracs[2]! * widthCss - padX) / usableW) * (cols - 1)), 4, cols - 5),
+      ] as const;
+
+      const sprites = isNarrow ? HUB_SPRITES_COMPACT : HUB_SPRITES_WIDE;
+      const spriteHalfW = Math.floor((sprites[0]?.[0]?.length ?? 5) / 2);
+
+      // Compute travelling packet coordinates along upper, center, and lower buses
+      const spanMin = hubCols[0] + spriteHalfW + 1;
+      const spanMax = hubCols[2] - spriteHalfW - 1;
+      const spanLen = Math.max(4, spanMax - spanMin);
+
+      const packets = [
+        { row: 1, pos: spanMin + (((timeSec * 0.28) % 1) * spanLen), dir: 1 },
+        { row: 1, pos: spanMin + ((((timeSec * 0.28 + 0.5) % 1)) * spanLen), dir: 1 },
+        { row: 2, pos: spanMin + (((timeSec * 0.41 + 0.18) % 1) * spanLen), dir: 1 },
+        { row: 2, pos: spanMax - (((timeSec * 0.35 + 0.62) % 1) * spanLen), dir: -1 },
+        { row: 3, pos: spanMax - (((timeSec * 0.26) % 1) * spanLen), dir: -1 },
+        { row: 3, pos: spanMax - ((((timeSec * 0.26 + 0.5) % 1)) * spanLen), dir: -1 },
+      ] as const;
+
+      const ptrColF = clamp01((pointerX * widthCss - padX) / usableW) * (cols - 1);
+      const ptrRowF = clamp01((pointerY * heightCss - gridTop) / gridH) * (rows - 1);
+
+      for (let r = 0; r < rows; r++) {
+        const yPx = gridTop + (r + 0.5) * cellH;
+        for (let c = 0; c < cols; c++) {
+          const xPx = padX + (c + 0.5) * actualCellW;
+          const u = c / Math.max(1, cols - 1);
+
+          // Check if cell falls inside one of the 3 hub ASCII cores
+          let hubMatchIdx = -1;
+          let hubChar = " ";
+          for (let h = 0; h < 3; h++) {
+            const dc = c - hubCols[h]! + spriteHalfW;
+            const spriteRow = sprites[h]?.[r];
+            if (spriteRow && dc >= 0 && dc < spriteRow.length) {
+              const candidate = spriteRow[dc] ?? " ";
+              if (candidate !== " ") {
+                hubMatchIdx = h;
+                hubChar = candidate;
+                break;
+              }
+            }
+          }
+
+          const ptrDist = Math.hypot((c - ptrColF) * 0.55, r - ptrRowF);
+          const ptrGlow = pointerActive > 0.05 ? Math.exp(-ptrDist * ptrDist * 0.42) * pointerActive : 0;
+
+          if (hubMatchIdx >= 0) {
+            const focus = hubIntensity[hubMatchIdx] ?? 0.35;
+            const pulse = reducedMotion
+              ? 0.6
+              : 0.5 + 0.5 * Math.sin(timeSec * 2.4 - hubMatchIdx * 1.4);
+
+            // Animate core symbol subtly on active center cell
+            let drawn = hubChar;
+            if (r === 2 && (hubChar === "*" || hubChar === "n" || hubChar === "=")) {
+              if (focus > 0.65 && !reducedMotion && Math.sin(timeSec * 5.2 + hubMatchIdx) > 0.35) {
+                drawn = "#";
+              }
+            }
+
+            const baseColor = mixRgb(theme.muted, theme.ink, clamp01(0.45 + focus * 0.55));
+            const color = mixRgb(
+              baseColor,
+              theme.accent,
+              clamp01(Math.max(0, focus - 0.55) * 1.5 + ptrGlow * 0.6),
+            );
+            ctx.fillStyle = rgbToCss(color, 0.62 + focus * 0.32 + pulse * 0.06);
+            ctx.fillText(drawn, xPx, yPx);
+            continue;
+          }
+
+          // Keep interior spaces inside all three hub sprites clear of bus tracks and background dots
+          if (
+            Math.abs(c - hubCols[0]) <= spriteHalfW ||
+            Math.abs(c - hubCols[1]) <= spriteHalfW ||
+            Math.abs(c - hubCols[2]) <= spriteHalfW
+          ) {
+            continue;
+          }
+
+          // Check horizontal bus lanes (rows 1, 2, 3) between hub 0 and hub 2
+          const onBusSpan = c > hubCols[0] + spriteHalfW && c < hubCols[2] - spriteHalfW;
+          if (onBusSpan && (r === 1 || r === 2 || r === 3)) {
+            let bestPacketDist = 99;
+            let bestPacketDir = 1;
+            for (let p = 0; p < packets.length; p++) {
+              const pkt = packets[p]!;
+              if (pkt.row !== r) continue;
+              const d = Math.abs(c - pkt.pos);
+              if (d < bestPacketDist) {
+                bestPacketDist = d;
+                bestPacketDir = pkt.dir;
+              }
+            }
+
+            // Highlight segments touching the currently active column
+            const nearCol = resolveColumnIdx(u, hubFracs);
+            const segFocus = hubIntensity[nearCol] ?? 0.35;
+
+            if (bestPacketDist < 1.35) {
+              const head = bestPacketDist < 0.55;
+              const ch = head ? (bestPacketDir > 0 ? ">" : "<") : r === 2 ? "=" : "+";
+              const color = mixRgb(theme.accentSecondary, theme.accent, head ? 0.92 : 0.45);
+              ctx.fillStyle = rgbToCss(color, head ? 0.95 : 0.68);
+              ctx.fillText(ch, xPx, yPx);
+              continue;
+            }
+
+            if (r === 2) {
+              const isTick = c % 4 === 0;
+              const ch = isTick ? "+" : "-";
+              const color = mixRgb(theme.muted, theme.ink, clamp01(0.2 + segFocus * 0.45 + ptrGlow * 0.5));
+              ctx.fillStyle = rgbToCss(color, 0.38 + segFocus * 0.25 + ptrGlow * 0.28);
+              ctx.fillText(ch, xPx, yPx);
+              continue;
+            }
+
+            // Sparse dashed outer lanes (rows 1 and 3)
+            if ((c + r) % 3 === 0 || ptrGlow > 0.25) {
+              const ch = ptrGlow > 0.35 ? "*" : "-";
+              const color = mixRgb(theme.muted, theme.accentSecondary, clamp01(segFocus * 0.5 + ptrGlow * 0.7));
+              ctx.fillStyle = rgbToCss(color, 0.2 + segFocus * 0.18 + ptrGlow * 0.32);
+              ctx.fillText(ch, xPx, yPx);
+              continue;
+            }
+          }
+
+          // Ambient pulsing micro-dot lattice elsewhere
+          const wave = reducedMotion
+            ? 0.42
+            : 0.5 + 0.5 * Math.sin(u * 10.5 - timeSec * 1.15 + r * 0.85);
+          const intensity = clamp01(wave * 0.34 + ptrGlow * 0.75);
+          if (intensity > 0.18 && (c % 2 === 0 || ptrGlow > 0.22)) {
+            const ch = intensity > 0.58 ? "*" : intensity > 0.34 ? ":" : "\u00b7";
+            const color = mixRgb(theme.muted, theme.accent, clamp01(ptrGlow * 0.85));
+            ctx.fillStyle = rgbToCss(color, 0.14 + intensity * 0.46);
+            ctx.fillText(ch, xPx, yPx);
+          }
+        }
+      }
+    },
+    {
+      onUpdate: (dt, state) => {
+        const isNarrow = state.widthCss < 520;
+        const hubFracs: readonly [number, number, number] = isNarrow
+          ? [0.18, 0.5, 0.82]
+          : [1 / 6, 3 / 6, 5 / 6];
+
+        if (state.pointerActive > 0.12) {
+          pointerCol = resolveColumnIdx(state.pointerX, hubFracs);
+        } else {
+          pointerCol = -1;
+        }
+
+        const ambientCol = state.reducedMotion ? -1 : Math.floor(state.timeSec / 3.2) % 3;
+        const activeTarget = externalCol >= 0 ? externalCol : pointerCol >= 0 ? pointerCol : ambientCol;
+        const rate = 1 - Math.exp(-dt * 8);
+
+        for (let i = 0; i < 3; i++) {
+          const targetVal = activeTarget === -1 ? 0.68 : i === activeTarget ? 1.0 : 0.28;
+          hubIntensity[i] = (hubIntensity[i] ?? 0.35) + (targetVal - (hubIntensity[i] ?? 0.35)) * rate;
+        }
+      },
+      onPointerLeave: () => {
+        pointerCol = -1;
+      },
+    },
+  );
+
+  return {
+    setActiveColumn: (colIdx: number, itemLabel?: string | null) => {
+      externalCol = colIdx >= 0 && colIdx <= 2 ? colIdx : -1;
+      externalItem = itemLabel ?? null;
+      if (isReducedMotionPreferred()) {
+        for (let i = 0; i < 3; i++) {
+          hubIntensity[i] = externalCol === -1 ? 0.68 : i === externalCol ? 1.0 : 0.28;
+        }
+      }
+      controller.requestRedraw();
+    },
     destroy: () => controller.destroy(),
   };
 }
