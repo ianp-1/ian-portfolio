@@ -9,10 +9,7 @@ const experience = (await getCollection("experience")).sort(
 
 <Section id="experience" title="Experience">
   <div class="exp-sticky-bar sticky top-16 z-20 -mx-2 mb-8 px-2 py-2">
-    <div
-      data-assemble-target="exp-bar"
-      class="overflow-hidden rounded-lg border border-line bg-surface"
-    >
+    <div class="overflow-hidden rounded-lg border border-line bg-surface">
       <canvas
         id="exp-oscilloscope"
         class="block h-20 w-full select-none"
@@ -28,8 +25,7 @@ const experience = (await getCollection("experience")).sort(
         const { company, role, period, highlights } = entry.data;
         return (
           <li
-            class="exp-row relative grid grid-cols-1 gap-x-10 gap-y-3 border-b border-line py-8 pl-4 last:border-b-0 md:grid-cols-[22ch_1fr] md:items-baseline md:pl-5"
-            data-assemble="role"
+            class="exp-row reveal relative grid grid-cols-1 gap-x-10 gap-y-3 border-b border-line py-8 pl-4 last:border-b-0 md:grid-cols-[22ch_1fr] md:items-baseline md:pl-5"
             data-exp-idx={idx}
             data-exp-active={idx === 0 ? "true" : "false"}
           >

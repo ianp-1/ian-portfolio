@@ -11,13 +11,6 @@ import {
   type ThemeColors,
 } from "./ascii-atlas";
 import { FULLSCREEN_VERTEX_SHADER, PASS2_FRAGMENT_SHADER } from "./ascii-shaders";
-import {
-  computeHeroPeelOrder,
-  computeHeroScrollDissolve,
-  computeHeroStayMask,
-  publishHeroSnapshot,
-  type HeroGlyphCell,
-} from "./hero-glyph-bridge";
 
 export interface HeroAsciiOptions {
   clearElement?: HTMLElement | null;
@@ -33,7 +26,6 @@ interface FluidFrameState {
   cols: number;
   rows: number;
   aspect: number;
-  scrollDissolve: number;
   theme: ThemeColors;
   clearRectUv: readonly [number, number, number, number] | null;
   clearRectDom: readonly [number, number, number, number] | null;
@@ -562,7 +554,6 @@ function createWebGL2Backend(
     uAccentSecondaryColor: gl.getUniformLocation(prog, "uAccentSecondaryColor"),
     uClearRect: gl.getUniformLocation(prog, "uClearRect"),
     uHasClearRect: gl.getUniformLocation(prog, "uHasClearRect"),
-    uScrollDissolve: gl.getUniformLocation(prog, "uScrollDissolve"),
   };
 
   let screenW = Math.max(1, canvas.width);
@@ -670,7 +661,6 @@ function createWebGL2Backend(
       gl.uniform4f(uniforms.uClearRect, 0, 0, 0, 0);
       gl.uniform1f(uniforms.uHasClearRect, 0.0);
     }
-    gl.uniform1f(uniforms.uScrollDissolve, state.scrollDissolve);
 
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.bindVertexArray(null);
@@ -797,16 +787,8 @@ function createCanvas2DBackend(canvas: HTMLCanvasElement): EngineBackend | null 
 
       for (let row = 0; row < rows; row++) {
         const ny = (row + 0.5) / rows;
-        const glRow = rows - 1 - row;
         for (let col = 0; col < cols; col++) {
           const nx = (col + 0.5) / cols;
-
-          let stayMask = 1;
-          if (state.scrollDissolve > 0.001) {
-            const peelOrder = computeHeroPeelOrder(col, glRow, rows);
-            stayMask = computeHeroStayMask(peelOrder, state.scrollDissolve);
-            if (stayMask <= 0.005) continue;
-          }
 
           const clearMask = computeClearMask(nx, ny, state.aspect, state.clearRectDom);
 
@@ -850,9 +832,7 @@ function createCanvas2DBackend(canvas: HTMLCanvasElement): EngineBackend | null 
           const secMix = clamp01(speed * 0.48) * (1 - smoothstep(0.55, 0.95, ink));
           const fieldRgb = mixRgb(base, theme.accentSecondary, secMix);
           const finalRgb = mixRgb(fieldRgb, theme.accent, smoothstep(0.26, 0.78, acc));
-          const vis =
-            clearMask * smoothstep(0.085, 0.24, Math.max(ink, acc * 0.48)) * stayMask;
-          if (vis <= 0.005) continue;
+          const vis = clearMask * smoothstep(0.085, 0.24, Math.max(ink, acc * 0.48));
           ctx.fillStyle = rgbToCss(finalRgb, vis);
           ctx.fillText(ch, (col + 0.5) * cellW, (row + 0.52) * cellH);
         }
@@ -911,19 +891,9 @@ export function mountHeroAscii(
 
   let widthPx = 1;
   let heightPx = 1;
-  let cssWidth = 1;
-  let cssHeight = 1;
   let cols = 96;
   let rows = 42;
   let aspect = 16 / 9;
-
-  const readScrollDissolve = (): number => {
-    if (reducedMotion || typeof window === "undefined") return 0;
-    return computeHeroScrollDissolve(window.scrollY, window.innerHeight);
-  };
-
-  let scrollDissolve = readScrollDissolve();
-  let prevImpulseDissolve = scrollDissolve;
 
   let prevSliceGridX = simW * 0.5;
   let prevSliceGridY = simH * 0.4;
@@ -1010,153 +980,6 @@ export function mountHeroAscii(
         velV[idx] = clamp((velV[idx] ?? 0) + (vyImpulse + swirlY) * w, -42, 42);
         energy[idx] = clamp((energy[idx] ?? 0) + energyBoost * w, 0, 1.5);
       }
-    }
-  };
-
-  const publishCurrentHeroSnapshot = () => {
-    if (destroyed || cssWidth <= 0 || cssHeight <= 0 || cols <= 0 || rows <= 0) return;
-
-    const cellW = cssWidth / cols;
-    const cellH = cssHeight / rows;
-    const stepX = Math.max(1 / simW, 0.72 / cols);
-    const stepY = Math.max(1 / simH, 0.72 / rows);
-    const rampLen = ATLAS_SPEC.asciiRamp.length;
-    const cells: HeroGlyphCell[] = [];
-
-    for (let row = 0; row < rows; row++) {
-      const ny = (row + 0.5) / rows;
-      const y = (row + 0.5) * cellH;
-      const glRow = rows - 1 - row;
-
-      for (let col = 0; col < cols; col++) {
-        const nx = (col + 0.5) / cols;
-        const clearMask = computeClearMask(nx, ny, aspect, clearRectDom);
-        if (clearMask <= 0.35) continue;
-
-        const maskVal = clamp01(sampleBilinear(targetMask, simW, simH, nx, ny));
-        const edgeVal = clamp01(sampleBilinear(targetEdge, simW, simH, nx, ny));
-        const inkVal = clamp01(maskVal * clearMask);
-        const accVal = clamp01(edgeVal * 0.62 * clearMask);
-        const lum = clamp01(inkVal + accVal * 0.14);
-        const weight = Math.max(inkVal, accVal * 0.48);
-        if (weight <= 0.20) continue;
-
-        const tl = sampleBilinear(targetMask, simW, simH, nx - stepX, ny - stepY);
-        const tc = sampleBilinear(targetMask, simW, simH, nx, ny - stepY);
-        const tr = sampleBilinear(targetMask, simW, simH, nx + stepX, ny - stepY);
-        const ml = sampleBilinear(targetMask, simW, simH, nx - stepX, ny);
-        const mr = sampleBilinear(targetMask, simW, simH, nx + stepX, ny);
-        const bl = sampleBilinear(targetMask, simW, simH, nx - stepX, ny + stepY);
-        const bc = sampleBilinear(targetMask, simW, simH, nx, ny + stepY);
-        const br = sampleBilinear(targetMask, simW, simH, nx + stepX, ny + stepY);
-
-        const gx = tr + 2 * mr + br - (tl + 2 * ml + bl);
-        const gy = tl + 2 * tc + tr - (bl + 2 * bc + br);
-        const edgeMag = Math.hypot(gx, gy);
-
-        let atlasRow = ATLAS_SPEC.rowAscii;
-        let glyphIdx = Math.floor(clamp(lum, 0, 0.999) * rampLen);
-
-        if (edgeMag * clearMask > 0.58 && inkVal > 0.24 && inkVal < 0.68) {
-          atlasRow = ATLAS_SPEC.rowEdge;
-          const eAngle = ((Math.atan2(gy, gx) % Math.PI) + Math.PI) % Math.PI;
-          glyphIdx = angleToEdgeGlyphIdx(eAngle);
-        } else if (glyphIdx <= 0) {
-          continue;
-        }
-
-        cells.push({
-          x: (col + 0.5) * cellW,
-          y,
-          cellW,
-          cellH,
-          atlasRow,
-          glyphIdx,
-          peelOrder: computeHeroPeelOrder(col, glRow, rows),
-          intensity: lum,
-        });
-      }
-    }
-
-    publishHeroSnapshot({
-      canvasWidth: cssWidth,
-      canvasHeight: cssHeight,
-      cols,
-      rows,
-      cells,
-    });
-  };
-
-  const injectScrollPeelImpulses = (prevDissolve: number, nextDissolve: number) => {
-    const delta = nextDissolve - prevDissolve;
-    if (Math.abs(delta) <= 0.002) return;
-
-    const midDissolve = 0.5 * (prevDissolve + nextDissolve);
-    const bandGlUvY = clamp(0.22 + (midDissolve - 0.17) / 0.92, 0.14, 0.88);
-    const bandNy = clamp(1 - bandGlUvY, 0.17, 0.72);
-    const minSimY = Math.max(1, Math.ceil(simH * 0.17));
-    const maxSimY = Math.min(simH - 2, Math.floor(simH * 0.78));
-    const bandCenterY = clamp(bandNy * simH, minSimY, maxSimY);
-    const bandHalfSpan = Math.max(4, simH * 0.14);
-    const yLo = Math.max(minSimY, Math.floor(bandCenterY - bandHalfSpan));
-    const yHi = Math.min(maxSimY, Math.ceil(bandCenterY + bandHalfSpan));
-
-    const strength = clamp(Math.abs(delta) * 110, 1.5, 11);
-    const vyBase = (delta > 0 ? -1 : 1) * strength;
-    const energyBoost = clamp(Math.abs(delta) * 3.8, 0.08, 0.42);
-    const radius = 3.0;
-
-    const targetXs: number[] = [];
-    const targetYs: number[] = [];
-    const strideX = Math.max(2, Math.floor(simW / 16));
-    for (let gx = 4; gx < simW - 4; gx += strideX) {
-      let sumY = 0;
-      let sumW = 0;
-      for (let gy = yLo; gy <= yHi; gy++) {
-        const w = targetMask[gy * simW + gx] ?? 0;
-        if (w > 0.22) {
-          sumY += gy * w;
-          sumW += w;
-        }
-      }
-      if (sumW > 0.25) {
-        targetXs.push(gx);
-        targetYs.push(sumY / sumW);
-      }
-    }
-
-    if (targetXs.length > 0) {
-      const maxSplats = 4;
-      const step = Math.max(1, Math.floor(targetXs.length / maxSplats));
-      let emitted = 0;
-      for (let i = 0; i < targetXs.length && emitted < maxSplats; i += step) {
-        const gx = targetXs[i]!;
-        const gy = targetYs[i]!;
-        const vxImpulse = Math.sin(simTimeSec * 4.5 + emitted * 1.85) * strength * 0.48;
-        splatVelocity(gx, gy, vxImpulse, vyBase, radius, energyBoost);
-        emitted++;
-      }
-    } else {
-      for (let k = 0; k < 3; k++) {
-        const gx = simW * (0.24 + k * 0.26);
-        const vxImpulse = Math.sin(simTimeSec * 4.5 + k * 1.85) * strength * 0.48;
-        splatVelocity(gx, bandCenterY, vxImpulse, vyBase, radius, energyBoost * 0.7);
-      }
-    }
-  };
-
-  const updateScrollDissolve = () => {
-    const nextDissolve = readScrollDissolve();
-    scrollDissolve = nextDissolve;
-
-    if (reducedMotion) {
-      prevImpulseDissolve = 0;
-      return;
-    }
-
-    if (Math.abs(nextDissolve - prevImpulseDissolve) > 0.002) {
-      injectScrollPeelImpulses(prevImpulseDissolve, nextDissolve);
-      prevImpulseDissolve = nextDissolve;
     }
   };
 
@@ -1281,7 +1104,6 @@ export function mountHeroAscii(
       cols,
       rows,
       aspect,
-      scrollDissolve,
       theme: themeColors,
       clearRectUv,
       clearRectDom,
@@ -1307,8 +1129,6 @@ export function mountHeroAscii(
     }
     widthPx = nextW;
     heightPx = nextH;
-    cssWidth = cssW;
-    cssHeight = cssH;
     aspect = cssW / cssH;
 
     const nextSimW = aspect < 1.0 ? LANDSCAPE_H : LANDSCAPE_W;
@@ -1328,9 +1148,7 @@ export function mountHeroAscii(
 
     backend?.resize(widthPx, heightPx, simW, simH);
     updateClearRect();
-    updateScrollDissolve();
     rebuildTypographyMask(simTimeSec === 0);
-    publishCurrentHeroSnapshot();
   };
 
   const stopLoop = () => {
@@ -1348,7 +1166,6 @@ export function mountHeroAscii(
     lastFrameMs = nowMs;
     simTimeSec += dt;
 
-    updateScrollDissolve();
     applyFluidForcesAndCouple(dt);
     renderSingleFrame();
     rafId = requestAnimationFrame(tick);
@@ -1445,7 +1262,6 @@ export function mountHeroAscii(
 
   const onLayoutChange = () => {
     layoutDirty = true;
-    updateScrollDissolve();
     if (reducedMotion) {
       updateClearRect();
       rebuildTypographyMask(true);
@@ -1479,8 +1295,6 @@ export function mountHeroAscii(
         if (!entry) return;
         isVisible = entry.isIntersecting;
         if (isVisible) {
-          updateScrollDissolve();
-          renderSingleFrame();
           requestStaticOrStart();
         } else {
           stopLoop();
@@ -1504,7 +1318,6 @@ export function mountHeroAscii(
   const stopThemeObserver = observeDataTheme(() => {
     themeColors = resolveThemeColors();
     if (reducedMotion || !isVisible) {
-      updateScrollDissolve();
       renderSingleFrame();
     }
   });
@@ -1512,14 +1325,10 @@ export function mountHeroAscii(
   const stopMotionObserver = observeReducedMotion((nextReduced) => {
     reducedMotion = nextReduced;
     if (reducedMotion) {
-      scrollDissolve = 0;
-      prevImpulseDissolve = 0;
       simTimeSec = STATIC_REDUCED_MOTION_SEC;
       stopLoop();
       renderSingleFrame();
     } else {
-      scrollDissolve = readScrollDissolve();
-      prevImpulseDissolve = scrollDissolve;
       ensureLoopRunning();
     }
   });
@@ -1569,7 +1378,6 @@ export function mountHeroAscii(
       backend?.uploadAtlas(atlasCanvas);
       updateClearRect();
       rebuildTypographyMask(reducedMotion || simTimeSec < 0.35);
-      publishCurrentHeroSnapshot();
       renderSingleFrame();
     });
   }

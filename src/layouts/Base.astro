@@ -55,28 +55,28 @@ const {
     </script>
   </head>
   <body>
-    <slot />
     <canvas
-      id="ascii-nanobot-canvas"
-      class="pointer-events-none fixed inset-0 z-20 h-full w-full select-none"
+      id="ascii-backdrop-canvas"
+      class="pointer-events-none fixed inset-0 z-0 h-full w-full select-none"
       aria-hidden="true"
     ></canvas>
+    <slot />
     <Cursor />
 
     <script>
       import {
-        mountAsciiNanobots,
-        type NanobotHandle,
-      } from "../lib/ascii-nanobots";
+        mountAsciiBackdrop,
+        type BackdropHandle,
+      } from "../lib/ascii-backdrop";
 
-      const canvas = document.getElementById("ascii-nanobot-canvas");
-      let handle: NanobotHandle | null = null;
+      const canvas = document.getElementById("ascii-backdrop-canvas");
+      let handle: BackdropHandle | null = null;
 
       if (canvas instanceof HTMLCanvasElement) {
         try {
-          handle = mountAsciiNanobots(canvas);
+          handle = mountAsciiBackdrop(canvas);
         } catch {
-          // Keep page content visible if nanobot canvas initialization fails.
+          // Keep page content legible if backdrop initialization fails.
         }
       }
 

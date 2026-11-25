@@ -4,19 +4,16 @@ import { SKILLS } from "../data/site";
 ---
 
 <Section id="skills" title="Stack">
-  <div data-stack-grid class="grid grid-cols-1 gap-x-10 gap-y-10 sm:grid-cols-3">
+  <div class="grid grid-cols-1 gap-x-10 gap-y-10 sm:grid-cols-3">
     {
-      SKILLS.map((group, colIdx) => (
-        <div data-assemble="stack-col" data-stack-col={colIdx}>
-          <h3 data-stack-heading class="mb-4 font-mono text-sm font-medium text-muted">
+      SKILLS.map((group) => (
+        <div class="reveal">
+          <h3 class="mb-4 font-mono text-sm font-medium text-muted">
             {group.group}
           </h3>
           <ul class="flex flex-col gap-1">
             {group.items.map((item) => (
-              <li
-                class="skill-item font-sans text-body text-ink"
-                data-stack-item={item}
-              >
+              <li class="skill-item font-sans text-body text-ink">
                 {item}
               </li>
             ))}
