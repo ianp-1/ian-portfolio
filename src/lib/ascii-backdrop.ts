@@ -324,11 +324,11 @@ void main() {
 
   // Soften central reading lane while leaving margins & rims sculptural
   float centerDist = abs(cellCenterUv.x - 0.5) * 2.0;
-  float centerWeight = smoothstep(0.32, 0.86, centerDist);
-  float laneMin = uIsDark > 0.5 ? 0.52 : 0.48;
+  float centerWeight = smoothstep(0.45, 0.92, centerDist);
+  float laneMin = uIsDark > 0.5 ? 0.30 : 0.24;
   float laneAtten = mix(laneMin, 1.0, centerWeight);
 
-  float maxVis = uIsDark > 0.5 ? 0.74 : 0.68;
+  float maxVis = uIsDark > 0.5 ? 0.40 : 0.34;
   float fieldStrength = smoothstep(0.05, 0.34, max(lum, max(rim, edgeMag * 0.62)));
 
   vec3 baseColor = mix(uMutedColor, uInkColor, smoothstep(0.18, 0.72, lum));
@@ -633,9 +633,9 @@ function createCanvas2DBackdrop(canvas: HTMLCanvasElement): BackdropBackend | nu
           const band = Math.exp(-ringDist * ringDist * 18);
           if (band < 0.12) continue;
 
-          const laneMin = theme.isDark ? 0.45 : 0.36;
-          const margin = smoothstep(0.35, 0.9, Math.abs(nx - 0.5) * 2);
-          const alpha = reveal * (theme.isDark ? 0.62 : 0.48) * mixNum(laneMin, 1, margin) * band;
+          const laneMin = theme.isDark ? 0.30 : 0.24;
+          const margin = smoothstep(0.45, 0.92, Math.abs(nx - 0.5) * 2);
+          const alpha = reveal * (theme.isDark ? 0.38 : 0.30) * mixNum(laneMin, 1, margin) * band;
           const glyph = ramp[Math.min(ramp.length - 1, Math.floor(clamp01(band) * ramp.length))] ?? ":";
           if (glyph === " ") continue;
           const colRgb = mixRgb(theme.muted, theme.accent, clamp01(band * 0.8));
