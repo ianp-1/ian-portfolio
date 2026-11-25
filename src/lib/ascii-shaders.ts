@@ -1,11 +1,6 @@
 import { ATLAS_SPEC } from "./ascii-atlas";
 
-export type {
-  AsciiCharset,
-  HeroAsciiHandle,
-  HeroAsciiOptions,
-  HeroFluidMode,
-} from "./ascii-engine";
+export type { HeroAsciiHandle, HeroAsciiOptions } from "./ascii-engine";
 
 export const FULLSCREEN_VERTEX_SHADER = `#version 300 es
 precision highp float;
@@ -30,11 +25,11 @@ void main() {
  * Pass 2 ASCII Compositor Fragment Shader.
  * Samples the 96x54 RGBA8 Navier-Stokes fluid texture:
  *  - R: advected ink density
- *  - G: accent excitation (rim energy + slice wake + burst shock rings)
+ *  - G: accent excitation (rim energy + directional wake)
  *  - B: packed horizontal fluid velocity (128/255 = 0)
  *  - A: packed vertical fluid velocity (128/255 = 0, +Y = up in GL UV space)
- * Runs 3x3 Sobel edge detection + velocity-aligned shard selection in ASCII mode,
- * or samples Braille / Block ramps from the Geist Mono atlas, feathering around uClearRect.
+ * Runs 3x3 Sobel edge detection + velocity-aligned shard selection from the
+ * Geist Mono atlas, feathering cleanly around uClearRect.
  */
 export const PASS2_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
@@ -49,8 +44,6 @@ uniform vec2 uGridSize;
 uniform vec2 uFluidTexel;
 uniform vec2 uAtlasDims;
 uniform float uAspect;
-uniform int uCharset;
-uniform int uMode;
 uniform vec3 uPaperColor;
 uniform vec3 uInkColor;
 uniform vec3 uMutedColor;
@@ -133,35 +126,23 @@ void main() {
   float atlasRow = float(${ATLAS_SPEC.rowAscii});
   float glyphIdx = 0.0;
 
-  if (uCharset == 0) {
-    float count = float(${ATLAS_SPEC.asciiRamp.length});
-    bool activeVelocityShard =
-      speed > 0.14 && acc > 0.24 && ink > 0.09 && ink < 0.85 && clearMask > 0.35;
-    bool activeSobelEdge =
-      edgeMag * clearMask > 0.58 && ink > 0.24 && ink < 0.68 && clearMask > 0.35;
+  float count = float(${ATLAS_SPEC.asciiRamp.length});
+  bool activeVelocityShard =
+    speed > 0.14 && acc > 0.24 && ink > 0.09 && ink < 0.85 && clearMask > 0.35;
+  bool activeSobelEdge =
+    edgeMag * clearMask > 0.58 && ink > 0.24 && ink < 0.68 && clearMask > 0.35;
 
-    if (activeVelocityShard) {
-      atlasRow = float(${ATLAS_SPEC.rowEdge});
-      float vAngle = mod(atan(vel.y, vel.x), PI);
-      glyphIdx = angleToVelocityShardGlyph(vAngle);
-    } else if (activeSobelEdge) {
-      atlasRow = float(${ATLAS_SPEC.rowEdge});
-      float eAngle = mod(atan(gy, gx), PI);
-      glyphIdx = angleToEdgeGlyph(eAngle);
-    } else {
-      atlasRow = float(${ATLAS_SPEC.rowAscii});
-      glyphIdx = floor(clamp(lum, 0.0, 0.999) * count);
-    }
-  } else if (uCharset == 1) {
-    atlasRow = float(${ATLAS_SPEC.rowBraille});
-    float count = float(${ATLAS_SPEC.brailleRamp.length});
-    float density = clamp(lum + edgeMag * 0.14 * clearMask, 0.0, 0.999);
-    glyphIdx = floor(density * count);
+  if (activeVelocityShard) {
+    atlasRow = float(${ATLAS_SPEC.rowEdge});
+    float vAngle = mod(atan(vel.y, vel.x), PI);
+    glyphIdx = angleToVelocityShardGlyph(vAngle);
+  } else if (activeSobelEdge) {
+    atlasRow = float(${ATLAS_SPEC.rowEdge});
+    float eAngle = mod(atan(gy, gx), PI);
+    glyphIdx = angleToEdgeGlyph(eAngle);
   } else {
-    atlasRow = float(${ATLAS_SPEC.rowBlock});
-    float count = float(${ATLAS_SPEC.blockRamp.length});
-    float density = clamp(lum + edgeMag * 0.10 * clearMask, 0.0, 0.999);
-    glyphIdx = floor(density * count);
+    atlasRow = float(${ATLAS_SPEC.rowAscii});
+    glyphIdx = floor(clamp(lum, 0.0, 0.999) * count);
   }
 
   vec2 insetCellUv = clamp(cellUv, 0.03, 0.97);
@@ -173,9 +154,9 @@ void main() {
   float glyphAlpha = texture(uAtlasTex, atlasUv).a;
 
   // Pure monochrome luminance progression:
-  // muted ambient field -> sharp ink letterforms -> bright monochrome accent highlights on fluid/shock energy
+  // muted ambient field -> sharp ink letterforms -> bright monochrome accent highlights on fluid wake
   vec3 baseColor = mix(uMutedColor, uInkColor, smoothstep(0.24, 0.68, ink));
-  float secMix = clamp(speed * 0.42 + (uMode == 1 ? edgeMag * 0.25 : 0.0), 0.0, 0.55) * (1.0 - smoothstep(0.55, 0.95, ink));
+  float secMix = clamp(speed * 0.42, 0.0, 0.55) * (1.0 - smoothstep(0.55, 0.95, ink));
   vec3 fieldColor = mix(baseColor, uAccentSecondaryColor, secMix);
   float primaryMix = smoothstep(0.22, 0.72, acc);
   vec3 glyphColor = mix(fieldColor, uAccentColor, primaryMix);

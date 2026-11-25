@@ -11,7 +11,7 @@ const socials = [
 <section id="contact" class="mx-auto max-w-5xl scroll-mt-24 px-6 py-24 md:px-10 md:py-32">
   <canvas
     id="horizon-ascii-canvas"
-    class="mb-10 block h-20 w-full select-none"
+    class="horizon-wave mb-10 block h-20 w-full select-none"
     style="touch-action: pan-y;"
     aria-hidden="true"
   ></canvas>
@@ -68,6 +68,11 @@ const socials = [
 </script>
 
 <style>
+  .horizon-wave {
+    content-visibility: auto;
+    contain-intrinsic-size: auto none auto 80px;
+  }
+
   .email-text {
     position: relative;
     transition: color 0.18s ease;

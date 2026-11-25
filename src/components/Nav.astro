@@ -52,17 +52,6 @@ const sections = [
 
       <div class="flex items-center gap-3 md:gap-4">
         <button
-          id="sound-toggle"
-          type="button"
-          aria-pressed="false"
-          data-sound-control
-          title="Toggle subtle Web Audio sound feedback"
-          class="nav-link nav-sound-btn hidden whitespace-nowrap font-mono text-sm font-medium text-muted hover:text-ink md:inline-flex"
-        >
-          <span data-sound-label>Sound</span>
-        </button>
-
-        <button
           id="theme-toggle"
           type="button"
           aria-label="Toggle color theme"
@@ -127,17 +116,6 @@ const sections = [
         </a>
       </li>
     </ul>
-
-    <div class="pt-4">
-      <button
-        type="button"
-        aria-pressed="false"
-        data-sound-control
-        class="nav-sound-mobile inline-flex items-center py-1 font-mono text-sm font-medium text-muted hover:text-ink"
-      >
-        <span data-sound-label>Sound</span>
-      </button>
-    </div>
   </div>
 </header>
 
@@ -164,17 +142,8 @@ const sections = [
 
   .nav-brand,
   .nav-link,
-  .nav-icon-btn,
-  .nav-sound-mobile {
+  .nav-icon-btn {
     transition: color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .nav-sound-btn[aria-pressed="true"],
-  .nav-sound-mobile[aria-pressed="true"] {
-    color: var(--ink);
-  }
-  .nav-sound-btn[aria-pressed="true"]::after {
-    clip-path: inset(0 0 0 0);
   }
 
   /* Theme icon is CSS-driven off [data-theme], which the no-FOUC script
@@ -212,28 +181,29 @@ const sections = [
   }
 
   @media (prefers-reduced-motion: reduce) {
-    #site-nav,
-    .nav-brand,
-    .nav-link,
-    .nav-icon-btn,
-    .nav-sound-mobile,
     .nav-link::after {
-      transition: none;
+      transition: opacity 0.18s ease;
+      clip-path: none;
+      opacity: 0;
+    }
+    .nav-link:hover::after,
+    .nav-link[aria-current="true"]::after {
+      opacity: 1;
     }
   }
 </style>
 
 <script>
-  import { isSoundEnabled, playTick, setSoundEnabled } from "../lib/synth-audio";
-
   const root = document.documentElement;
 
   // ── Theme toggle ──────────────────────────────────────────────────
   const toggle = document.getElementById("theme-toggle");
   const themeMeta = document.getElementById("meta-theme-color");
+  const schemeMeta = document.getElementById("meta-color-scheme");
 
   function applyTheme(theme: string) {
     root.setAttribute("data-theme", theme);
+    schemeMeta?.setAttribute("content", theme === "dark" ? "dark" : "light");
     // Keep the browser chrome color in step with the --paper token
     themeMeta?.setAttribute("content", theme === "dark" ? "#080808" : "#FAFAFA");
     toggle?.setAttribute("aria-pressed", String(theme === "dark"));
@@ -246,35 +216,18 @@ const sections = [
   toggle?.addEventListener("click", () => {
     const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
     applyTheme(next);
-    playTick();
     try {
       localStorage.setItem("theme", next);
     } catch {}
   });
 
-  // ── Sound toggle ──────────────────────────────────────────────────
-  const soundButtons = Array.from(
-    document.querySelectorAll<HTMLButtonElement>("[data-sound-control]"),
-  );
-
-  function syncSoundButtons(enabled: boolean) {
-    soundButtons.forEach((btn) => {
-      btn.setAttribute("aria-pressed", String(enabled));
-      const label = btn.querySelector("[data-sound-label]");
-      if (label) {
-        label.textContent = enabled ? "Sound on" : "Sound";
-      }
-    });
-  }
-
-  syncSoundButtons(isSoundEnabled());
-
-  soundButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const next = setSoundEnabled(!isSoundEnabled());
-      syncSoundButtons(next);
-      if (next) playTick();
-    });
+  window.addEventListener("storage", (event) => {
+    if (
+      event.key === "theme" &&
+      (event.newValue === "dark" || event.newValue === "light")
+    ) {
+      applyTheme(event.newValue);
+    }
   });
 
   // ── Nav background after scrolling past the top ───────────────────

@@ -1,5 +1,3 @@
-import type { AsciiCharset } from "./ascii-engine";
-
 export interface ThemeRgb {
   r: number;
   g: number;
@@ -196,18 +194,6 @@ export function observeDataTheme(onChange: () => void): () => void {
     attributeFilter: ["data-theme"],
   });
   return () => observer.disconnect();
-}
-
-export function getRampForCharset(charset: AsciiCharset): string {
-  switch (charset) {
-    case "braille":
-      return ATLAS_SPEC.brailleRamp;
-    case "blocks":
-      return ATLAS_SPEC.blockRamp;
-    case "ascii":
-    default:
-      return ATLAS_SPEC.asciiRamp;
-  }
 }
 
 function drawBrailleFallback(

@@ -2,7 +2,6 @@ import {
   ATLAS_SPEC,
   CHARSET_FONT_STACK,
   buildGlyphAtlasCanvas,
-  getRampForCharset,
   isReducedMotionPreferred,
   mixRgb,
   observeDataTheme,
@@ -12,32 +11,13 @@ import {
   type ThemeColors,
 } from "./ascii-atlas";
 import { FULLSCREEN_VERTEX_SHADER, PASS2_FRAGMENT_SHADER } from "./ascii-shaders";
-import { playBurst } from "./synth-audio";
-
-export type HeroFluidMode = "shatter" | "topography" | "vortex";
-export type AsciiCharset = "ascii" | "braille" | "blocks";
 
 export interface HeroAsciiOptions {
   clearElement?: HTMLElement | null;
-  initialMode?: HeroFluidMode;
-  initialCharset?: AsciiCharset;
-  initialText?: string;
 }
 
 export interface HeroAsciiHandle {
-  setMode: (mode: HeroFluidMode) => void;
-  setCharset: (charset: AsciiCharset) => void;
-  setDisplayText: (text: string) => void;
-  resetDisplayText: () => void;
-  triggerBurst: (normX: number, normY: number) => void;
   destroy: () => void;
-}
-
-interface ShockRing {
-  x: number;
-  y: number;
-  startMs: number;
-  active: boolean;
 }
 
 interface FluidFrameState {
@@ -46,8 +26,6 @@ interface FluidFrameState {
   cols: number;
   rows: number;
   aspect: number;
-  mode: HeroFluidMode;
-  charset: AsciiCharset;
   theme: ThemeColors;
   clearRectUv: readonly [number, number, number, number] | null;
   clearRectDom: readonly [number, number, number, number] | null;
@@ -69,20 +47,7 @@ const LANDSCAPE_W = 96;
 const LANDSCAPE_H = 54;
 const SIM_N = LANDSCAPE_W * LANDSCAPE_H;
 const DEFAULT_DISPLAY_TEXT = "IAN PANG";
-const BURST_DURATION_MS = 1150;
 const STATIC_REDUCED_MOTION_SEC = 2.4;
-
-const MODE_INDEX: Record<HeroFluidMode, number> = {
-  shatter: 0,
-  topography: 1,
-  vortex: 2,
-};
-
-const CHARSET_INDEX: Record<AsciiCharset, number> = {
-  ascii: 0,
-  braille: 1,
-  blocks: 2,
-};
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
@@ -582,8 +547,6 @@ function createWebGL2Backend(
     uFluidTexel: gl.getUniformLocation(prog, "uFluidTexel"),
     uAtlasDims: gl.getUniformLocation(prog, "uAtlasDims"),
     uAspect: gl.getUniformLocation(prog, "uAspect"),
-    uCharset: gl.getUniformLocation(prog, "uCharset"),
-    uMode: gl.getUniformLocation(prog, "uMode"),
     uPaperColor: gl.getUniformLocation(prog, "uPaperColor"),
     uInkColor: gl.getUniformLocation(prog, "uInkColor"),
     uMutedColor: gl.getUniformLocation(prog, "uMutedColor"),
@@ -672,8 +635,6 @@ function createWebGL2Backend(
     gl.uniform2f(uniforms.uFluidTexel, 1 / state.simW, 1 / state.simH);
     gl.uniform2f(uniforms.uAtlasDims, ATLAS_SPEC.cols, ATLAS_SPEC.rows);
     gl.uniform1f(uniforms.uAspect, state.aspect);
-    gl.uniform1i(uniforms.uCharset, CHARSET_INDEX[state.charset]);
-    gl.uniform1i(uniforms.uMode, MODE_INDEX[state.mode]);
 
     const { paper, ink, muted, accent, accentSecondary } = state.theme;
     gl.uniform3f(uniforms.uPaperColor, paper.r, paper.g, paper.b);
@@ -789,7 +750,7 @@ function createCanvas2DBackend(canvas: HTMLCanvasElement): EngineBackend | null 
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
-      const ramp = getRampForCharset(state.charset);
+      const ramp = ATLAS_SPEC.asciiRamp;
       const edges = ATLAS_SPEC.edgeRamp;
       const edgeChars = [
         edges[0] ?? "|",
@@ -838,7 +799,7 @@ function createCanvas2DBackend(canvas: HTMLCanvasElement): EngineBackend | null 
 
           let ch = ramp[Math.min(ramp.length - 1, Math.floor(clamp(lum, 0, 0.999) * ramp.length))] ?? " ";
 
-          if (state.charset === "ascii" && clearMask > 0.35) {
+          if (clearMask > 0.35) {
             if (speed > 0.14 && acc > 0.24 && ink > 0.09 && ink < 0.85) {
               const angle = ((Math.atan2(vy, vx) % Math.PI) + Math.PI) % Math.PI;
               if (angle < Math.PI * 0.125 || angle >= Math.PI * 0.875) ch = edgeChars[2];
@@ -882,9 +843,6 @@ export function mountHeroAscii(
   options: HeroAsciiOptions = {},
 ): HeroAsciiHandle {
   let destroyed = false;
-  let currentMode: HeroFluidMode = options.initialMode ?? "shatter";
-  let currentCharset: AsciiCharset = options.initialCharset ?? "ascii";
-  let currentText: string = options.initialText ?? DEFAULT_DISPLAY_TEXT;
 
   let reducedMotion = isReducedMotionPreferred();
   let isVisible = true;
@@ -918,7 +876,6 @@ export function mountHeroAscii(
 
   const targetMask = new Float32Array(SIM_N);
   const targetEdge = new Float32Array(SIM_N);
-  const prevMaskScratch = new Float32Array(SIM_N);
   const packedRgba = new Uint8Array(SIM_N * 4);
 
   let widthPx = 1;
@@ -926,25 +883,10 @@ export function mountHeroAscii(
   let cols = 96;
   let rows = 42;
   let aspect = 16 / 9;
-  let typographyCenterY = 0.4;
 
-  let pointerNormX = 0.5;
-  let pointerNormY = 0.4;
   let prevSliceGridX = simW * 0.5;
   let prevSliceGridY = simH * 0.4;
   let hasPrevPointer = false;
-  let pointerActive = 0;
-
-  const shockRings: ShockRing[] = [
-    { x: 0.5, y: 0.5, startMs: 0, active: false },
-    { x: 0.5, y: 0.5, startMs: 0, active: false },
-    { x: 0.5, y: 0.5, startMs: 0, active: false },
-    { x: 0.5, y: 0.5, startMs: 0, active: false },
-  ];
-  let shockCursor = 0;
-  let lastBurstMs = -1000;
-  let lastBurstX = -1;
-  let lastBurstY = -1;
 
   let clearRectUv: [number, number, number, number] | null = null;
   let clearRectDom: [number, number, number, number] | null = null;
@@ -979,10 +921,9 @@ export function mountHeroAscii(
   };
 
   const rebuildTypographyMask = (seedInk = false) => {
-    prevMaskScratch.set(targetMask);
-    typographyCenterY = rasterizeTypographyMask(
+    rasterizeTypographyMask(
       maskCanvas,
-      currentText,
+      DEFAULT_DISPLAY_TEXT,
       aspect,
       simW,
       simH,
@@ -994,13 +935,6 @@ export function mountHeroAscii(
     if (seedInk || reducedMotion) {
       for (let i = 0; i < SIM_N; i++) {
         ink[i] = targetMask[i] ?? 0;
-      }
-    } else {
-      for (let i = 0; i < SIM_N; i++) {
-        const diff = Math.abs((targetMask[i] ?? 0) - (prevMaskScratch[i] ?? 0));
-        if (diff > 0.15) {
-          energy[i] = clamp((energy[i] ?? 0) + diff * 0.72, 0, 1.4);
-        }
       }
     }
   };
@@ -1038,55 +972,10 @@ export function mountHeroAscii(
     }
   };
 
-  const applyModeForcesAndCouple = (dt: number, nowMs: number) => {
-    if (currentMode === "vortex") {
-      const cx = simW * 0.5;
-      const cy = simH * typographyCenterY;
-      const orbitRx = simW * 0.28;
-      const orbitRy = simH * 0.18;
+  const applyFluidForcesAndCouple = (dt: number) => {
+    applyVorticityConfinement(velU, velV, curlBuf, simW, simH, dt, 1.25);
 
-      const a1 = simTimeSec * 1.15;
-      const j1x = cx + Math.cos(a1) * orbitRx;
-      const j1y = cy + Math.sin(a1 * 1.3) * orbitRy;
-      const t1x = -Math.sin(a1) * 14;
-      const t1y = Math.cos(a1 * 1.3) * 12;
-      splatVelocity(j1x, j1y, t1x * dt * 11, t1y * dt * 11, 5.2, dt * 1.6);
-
-      const a2 = a1 + Math.PI;
-      const j2x = cx + Math.cos(a2) * orbitRx;
-      const j2y = cy + Math.sin(a2 * 1.3) * orbitRy;
-      const t2x = Math.sin(a2) * 14;
-      const t2y = -Math.cos(a2 * 1.3) * 12;
-      splatVelocity(j2x, j2y, t2x * dt * 11, t2y * dt * 11, 5.2, dt * 1.6);
-    }
-
-    if (currentMode === "topography") {
-      const t = simTimeSec;
-      for (let y = 1; y < simH - 1; y++) {
-        const ny = y / simH;
-        const row = y * simW;
-        for (let x = 1; x < simW - 1; x++) {
-          const nx = x / simW;
-          const idx = row + x;
-          const fx = Math.sin(ny * 7.2 + t * 0.9) * 3.8;
-          const fy = Math.cos(nx * 8.4 - t * 0.75) * 3.2;
-          velU[idx] = clamp((velU[idx] ?? 0) + fx * dt, -36, 36);
-          velV[idx] = clamp((velV[idx] ?? 0) + fy * dt, -36, 36);
-        }
-      }
-    }
-
-    applyVorticityConfinement(
-      velU,
-      velV,
-      curlBuf,
-      simW,
-      simH,
-      dt,
-      currentMode === "vortex" ? 1.55 : 1.25,
-    );
-
-    const velDamp = Math.exp(-dt * (currentMode === "vortex" ? 1.35 : 1.85));
+    const velDamp = Math.exp(-dt * 1.85);
     for (let i = 0; i < SIM_N; i++) {
       velU[i] = (velU[i] ?? 0) * velDamp;
       velV[i] = (velV[i] ?? 0) * velDamp;
@@ -1106,8 +995,6 @@ export function mountHeroAscii(
     advect(0, energy, energyPrev, velU, velV, simW, simH, dt);
 
     const energyDecay = Math.exp(-dt * 2.25);
-    const ptrGx = pointerNormX * simW;
-    const ptrGy = pointerNormY * simH;
 
     for (let y = 0; y < simH; y++) {
       const ny = (y + 0.5) / simH;
@@ -1124,44 +1011,12 @@ export function mountHeroAscii(
         const mask = targetMask[i] ?? 0;
         const edge = targetEdge[i] ?? 0;
 
-        let desiredInk = mask;
-        let ambientAccent = 0;
-
-        if (currentMode === "shatter") {
-          const drift =
-            Math.sin(nx * 9.5 + simTimeSec * 0.42 + uVal * 0.14) *
-            Math.cos(ny * 6.8 - simTimeSec * 0.34 + vVal * 0.14);
-          const contour = smoothstep(0.62, 0.98, Math.abs(drift));
-          desiredInk = Math.max(mask, contour * 0.15 * navClear);
-          ambientAccent = edge * 0.62;
-        } else if (currentMode === "topography") {
-          const ptrWave =
-            pointerActive > 0.05
-              ? Math.exp(-((x - ptrGx) * (x - ptrGx) + (y - ptrGy) * (y - ptrGy)) / 42) *
-                0.55 *
-                pointerActive
-              : 0;
-          const elev =
-            Math.sin(nx * 5.6 + simTimeSec * 0.38 + uVal * 0.12) *
-              Math.cos(ny * 4.8 - simTimeSec * 0.28 + vVal * 0.12) *
-              0.5 +
-            Math.sin((nx + ny) * 7.5 - simTimeSec * 0.22) * 0.22 +
-            mask * 0.68 +
-            ptrWave;
-          const frac = Math.abs((((elev * 4.4) % 1) + 1) % 1 - 0.5);
-          const contour = clamp01(1 - frac / 0.14);
-          desiredInk = clamp01(Math.max(mask * 0.94, contour * 0.54 * navClear));
-          ambientAccent = clamp01(
-            edge * 0.62 + contour * 0.45 * navClear * (1 - mask * 0.5),
-          );
-        } else {
-          const dx = (nx - 0.5) * aspect;
-          const dy = ny - typographyCenterY;
-          const r = Math.hypot(dx, dy);
-          const ring = Math.exp(-Math.pow((r - 0.38) * 14, 2)) * 0.22 * navClear;
-          desiredInk = Math.max(mask * 0.94, ring);
-          ambientAccent = clamp01(edge * 0.62 + ring * 0.78);
-        }
+        const drift =
+          Math.sin(nx * 9.5 + simTimeSec * 0.42 + uVal * 0.14) *
+          Math.cos(ny * 6.8 - simTimeSec * 0.34 + vVal * 0.14);
+        const contour = smoothstep(0.62, 0.98, Math.abs(drift));
+        const desiredInk = Math.max(mask, contour * 0.15 * navClear);
+        const ambientAccent = edge * 0.62;
 
         const curEnergy = energy[i] ?? 0;
         const shatterSuppress = 1 / (1 + speed * 0.48 + curEnergy * 1.45);
@@ -1181,37 +1036,9 @@ export function mountHeroAscii(
         );
       }
     }
-
-    for (let s = 0; s < 4; s++) {
-      const ring = shockRings[s];
-      if (!ring || !ring.active) continue;
-      const age = (nowMs - ring.startMs) / BURST_DURATION_MS;
-      if (age >= 1 || age < 0) {
-        ring.active = false;
-        continue;
-      }
-      const radius = age * 0.88;
-      const fade = (1 - age) * 1.1;
-      for (let y = 0; y < simH; y++) {
-        const ny = (y + 0.5) / simH;
-        const navClear = smoothstep(0.07, 0.145, ny);
-        if (navClear <= 0.01) continue;
-        const row = y * simW;
-        for (let x = 0; x < simW; x++) {
-          const nx = (x + 0.5) / simW;
-          const d = Math.hypot((nx - ring.x) * aspect, ny - ring.y);
-          const band = Math.exp(-Math.pow((d - radius) * 19, 2)) * fade * navClear;
-          if (band > 0.03) {
-            const i = row + x;
-            ink[i] = clamp01((ink[i] ?? 0) + band * 0.34);
-            energy[i] = clamp((energy[i] ?? 0) + band * 0.95, 0, 1.4);
-          }
-        }
-      }
-    }
   };
 
-  const populateStaticReducedFrame = (nowMs: number) => {
+  const populateStaticReducedFrame = () => {
     velU.fill(0);
     velV.fill(0);
     for (let y = 0; y < simH; y++) {
@@ -1223,45 +1050,10 @@ export function mountHeroAscii(
         const i = row + x;
         const mask = targetMask[i] ?? 0;
         const edge = targetEdge[i] ?? 0;
-        if (currentMode === "topography") {
-          const elev =
-            Math.sin(nx * 5.6 + 0.9) * Math.cos(ny * 4.8 - 0.7) * 0.5 + mask * 0.68;
-          const frac = Math.abs((((elev * 4.4) % 1) + 1) % 1 - 0.5);
-          const contour = clamp01(1 - frac / 0.14);
-          ink[i] = clamp01(Math.max(mask * 0.95, contour * 0.52 * navClear));
-          energy[i] = clamp01(edge * 0.62 + contour * 0.36 * navClear);
-        } else {
-          const drift = Math.sin(nx * 9.5 + 1.0) * Math.cos(ny * 6.8 - 0.8);
-          const contour = smoothstep(0.64, 0.98, Math.abs(drift));
-          ink[i] = Math.max(mask, contour * 0.14 * navClear);
-          energy[i] = edge * 0.62;
-        }
-      }
-    }
-    for (let s = 0; s < 4; s++) {
-      const ring = shockRings[s];
-      if (!ring || !ring.active) continue;
-      const age = (nowMs - ring.startMs) / BURST_DURATION_MS;
-      if (age >= 1 || age < 0) {
-        ring.active = false;
-        continue;
-      }
-      const radius = age * 0.88;
-      for (let y = 0; y < simH; y++) {
-        const ny = (y + 0.5) / simH;
-        const navClear = smoothstep(0.07, 0.145, ny);
-        if (navClear <= 0.01) continue;
-        const row = y * simW;
-        for (let x = 0; x < simW; x++) {
-          const nx = (x + 0.5) / simW;
-          const d = Math.hypot((nx - ring.x) * aspect, ny - ring.y);
-          const band = Math.exp(-Math.pow((d - radius) * 19, 2)) * (1 - age) * navClear;
-          if (band > 0.04) {
-            const i = row + x;
-            ink[i] = clamp01((ink[i] ?? 0) + band * 0.34);
-            energy[i] = clamp01((energy[i] ?? 0) + band * 0.9);
-          }
-        }
+        const drift = Math.sin(nx * 9.5 + 1.0) * Math.cos(ny * 6.8 - 0.8);
+        const contour = smoothstep(0.64, 0.98, Math.abs(drift));
+        ink[i] = Math.max(mask, contour * 0.14 * navClear);
+        energy[i] = edge * 0.62;
       }
     }
   };
@@ -1286,13 +1078,13 @@ export function mountHeroAscii(
     }
   };
 
-  const renderSingleFrame = (nowMs: number) => {
+  const renderSingleFrame = () => {
     if (destroyed || !backend) return;
     if (layoutDirty) {
       updateClearRect();
     }
     if (reducedMotion) {
-      populateStaticReducedFrame(nowMs);
+      populateStaticReducedFrame();
     }
     packFluidTexture();
     backend.render({
@@ -1301,8 +1093,6 @@ export function mountHeroAscii(
       cols,
       rows,
       aspect,
-      mode: currentMode,
-      charset: currentCharset,
       theme: themeColors,
       clearRectUv,
       clearRectDom,
@@ -1364,10 +1154,9 @@ export function mountHeroAscii(
     const dt = lastFrameMs > 0 ? Math.min((nowMs - lastFrameMs) / 1000, 0.04) : 0.016;
     lastFrameMs = nowMs;
     simTimeSec += dt;
-    pointerActive *= Math.exp(-dt * 4.5);
 
-    applyModeForcesAndCouple(dt, nowMs);
-    renderSingleFrame(nowMs);
+    applyFluidForcesAndCouple(dt);
+    renderSingleFrame();
     rafId = requestAnimationFrame(tick);
   };
 
@@ -1387,13 +1176,13 @@ export function mountHeroAscii(
     if (destroyed) return;
     if (reducedMotion) {
       stopLoop();
-      renderSingleFrame(performance.now());
+      renderSingleFrame();
     } else {
       ensureLoopRunning();
     }
   };
 
-  // ── Pointer Slicing (passive, touch-action: pan-y safe) ───────────
+  // ── Passive pointer wake (touch-action: pan-y safe) ───────────────
   const onWindowPointerMove = (e: PointerEvent) => {
     if (destroyed || reducedMotion) return;
     const rect = canvas.getBoundingClientRect();
@@ -1414,10 +1203,6 @@ export function mountHeroAscii(
     const ny = clamp01((e.clientY - rect.top) / rect.height);
     const gx = nx * simW;
     const gy = ny * simH;
-
-    pointerNormX = nx;
-    pointerNormY = ny;
-    pointerActive = 1;
 
     if (!hasPrevPointer) {
       prevSliceGridX = gx;
@@ -1469,12 +1254,12 @@ export function mountHeroAscii(
     if (reducedMotion) {
       updateClearRect();
       rebuildTypographyMask(true);
-      renderSingleFrame(performance.now());
+      renderSingleFrame();
     }
   };
   const onWindowResize = () => {
     syncSize();
-    if (reducedMotion) renderSingleFrame(performance.now());
+    if (reducedMotion) renderSingleFrame();
   };
   window.addEventListener("scroll", onLayoutChange, { passive: true });
   window.addEventListener("resize", onWindowResize, { passive: true });
@@ -1483,7 +1268,7 @@ export function mountHeroAscii(
   if (typeof ResizeObserver !== "undefined") {
     resizeObserver = new ResizeObserver(() => {
       syncSize();
-      if (reducedMotion) renderSingleFrame(performance.now());
+      if (reducedMotion) renderSingleFrame();
     });
     resizeObserver.observe(canvas);
     if (options.clearElement) {
@@ -1522,7 +1307,7 @@ export function mountHeroAscii(
   const stopThemeObserver = observeDataTheme(() => {
     themeColors = resolveThemeColors();
     if (reducedMotion || !isVisible) {
-      renderSingleFrame(performance.now());
+      renderSingleFrame();
     }
   });
 
@@ -1531,109 +1316,11 @@ export function mountHeroAscii(
     if (reducedMotion) {
       simTimeSec = STATIC_REDUCED_MOTION_SEC;
       stopLoop();
-      renderSingleFrame(performance.now());
+      renderSingleFrame();
     } else {
       ensureLoopRunning();
     }
   });
-
-  // ── Public Handle Methods ─────────────────────────────────────────
-  const setMode = (mode: HeroFluidMode) => {
-    if (destroyed || mode === currentMode) return;
-    currentMode = mode;
-    if (mode === "vortex" && !reducedMotion) {
-      splatVelocity(simW * 0.35, simH * typographyCenterY, 0, -14, 6.0, 0.7);
-      splatVelocity(simW * 0.65, simH * typographyCenterY, 0, 14, 6.0, 0.7);
-    }
-    if (reducedMotion) {
-      renderSingleFrame(performance.now());
-    } else {
-      ensureLoopRunning();
-    }
-  };
-
-  const setCharset = (charset: AsciiCharset) => {
-    if (destroyed || charset === currentCharset) return;
-    currentCharset = charset;
-    if (reducedMotion) {
-      renderSingleFrame(performance.now());
-    }
-  };
-
-  const setDisplayText = (text: string) => {
-    if (destroyed) return;
-    const normalized =
-      text.trim().length > 0 ? text.trim().toUpperCase().slice(0, 20) : DEFAULT_DISPLAY_TEXT;
-    if (normalized === currentText) return;
-    currentText = normalized;
-    rebuildTypographyMask(reducedMotion);
-    if (reducedMotion) {
-      renderSingleFrame(performance.now());
-    }
-  };
-
-  const resetDisplayText = () => {
-    setDisplayText(options.initialText ?? DEFAULT_DISPLAY_TEXT);
-  };
-
-  const triggerBurst = (normX: number, normY: number) => {
-    if (destroyed) return;
-    const now = performance.now();
-    const nx = clamp01(normX);
-    const ny = clamp01(normY);
-
-    if (now - lastBurstMs < 90 && Math.hypot(nx - lastBurstX, ny - lastBurstY) < 0.04) {
-      return;
-    }
-    lastBurstMs = now;
-    lastBurstX = nx;
-    lastBurstY = ny;
-
-    if (!reducedMotion) {
-      const gx = nx * simW;
-      const gy = ny * simH;
-      const rad = 11.5;
-      const minX = Math.max(1, Math.floor(gx - rad));
-      const maxX = Math.min(simW - 2, Math.ceil(gx + rad));
-      const minY = Math.max(1, Math.floor(gy - rad));
-      const maxY = Math.min(simH - 2, Math.ceil(gy + rad));
-
-      for (let y = minY; y <= maxY; y++) {
-        const dy = y - gy;
-        const row = y * simW;
-        for (let x = minX; x <= maxX; x++) {
-          const dx = x - gx;
-          const dist = Math.hypot(dx, dy);
-          if (dist > rad) continue;
-          const w = Math.exp(-(dist * dist) / 26);
-          const invD = dist > 0.05 ? 1 / dist : 0;
-          const radialX = dx * invD * 30 * w;
-          const radialY = dy * invD * 30 * w;
-          const swirlX = -dy * 1.4 * w;
-          const swirlY = dx * 1.4 * w;
-          const idx = row + x;
-          velU[idx] = clamp((velU[idx] ?? 0) + radialX + swirlX, -42, 42);
-          velV[idx] = clamp((velV[idx] ?? 0) + radialY + swirlY, -42, 42);
-          energy[idx] = clamp((energy[idx] ?? 0) + 1.15 * w, 0, 1.5);
-        }
-      }
-    }
-
-    const slot = shockRings[shockCursor];
-    if (slot) {
-      slot.x = nx;
-      slot.y = ny;
-      slot.startMs = reducedMotion ? now - BURST_DURATION_MS * 0.24 : now;
-      slot.active = true;
-    }
-    shockCursor = (shockCursor + 1) % 4;
-
-    playBurst();
-
-    if (reducedMotion) {
-      renderSingleFrame(now);
-    }
-  };
 
   const destroy = () => {
     if (destroyed) return;
@@ -1667,7 +1354,7 @@ export function mountHeroAscii(
 
   // Immediate first paint before fonts finish loading
   syncSize();
-  renderSingleFrame(performance.now());
+  renderSingleFrame();
   if (!reducedMotion) {
     ensureLoopRunning();
   }
@@ -1680,16 +1367,11 @@ export function mountHeroAscii(
       backend?.uploadAtlas(atlasCanvas);
       updateClearRect();
       rebuildTypographyMask(reducedMotion || simTimeSec < 0.35);
-      renderSingleFrame(performance.now());
+      renderSingleFrame();
     });
   }
 
   return {
-    setMode,
-    setCharset,
-    setDisplayText,
-    resetDisplayText,
-    triggerBurst,
     destroy,
   };
 }

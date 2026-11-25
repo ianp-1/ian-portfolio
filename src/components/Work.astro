@@ -17,21 +17,6 @@ function toExhibitId(rawId: string): ExhibitId {
   }
   return "nadir";
 }
-
-const EXHIBIT_META: Record<ExhibitId, { hint: string; initialStatus: string }> = {
-  nadir: {
-    hint: "Drag to spin · Click nodes",
-    initialStatus: "Orbit active",
-  },
-  canopy: {
-    hint: "Drag to stir wind",
-    initialStatus: "1004 hPa · ambient",
-  },
-  obscurafy: {
-    hint: "Sweep to redact · Click to lock",
-    initialStatus: "Scanner active",
-  },
-};
 ---
 
 <Section id="work" title="Selected work" meta={`${projects.length} projects`}>
@@ -41,7 +26,6 @@ const EXHIBIT_META: Record<ExhibitId, { hint: string; initialStatus: string }> =
         const { title, description, tags, award, code, demo } = project.data;
         const href = demo ?? code ?? "#";
         const exhibitId = toExhibitId(project.id);
-        const meta = EXHIBIT_META[exhibitId];
         const isReversed = idx % 2 === 1;
         const [awardPrize, awardEvent] = award
           ? award.split("·").map((part) => part.trim())
@@ -64,16 +48,6 @@ const EXHIBIT_META: Record<ExhibitId, { hint: string; initialStatus: string }> =
                   data-exhibit={exhibitId}
                   aria-hidden="true"
                 />
-                <div class="work-exhibit-bar flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1.5 border-t border-line px-4 py-3 font-mono text-sm text-muted">
-                  <span>{meta.hint}</span>
-                  <span
-                    data-exhibit-status={exhibitId}
-                    class="text-ink"
-                    aria-live="polite"
-                  >
-                    {meta.initialStatus}
-                  </span>
-                </div>
               </div>
             </div>
 
@@ -132,22 +106,13 @@ const EXHIBIT_META: Record<ExhibitId, { hint: string; initialStatus: string }> =
     const id = canvas.dataset.exhibit;
     if (id !== "nadir" && id !== "canopy" && id !== "obscurafy") continue;
 
-    const statusEl = document.querySelector<HTMLElement>(
-      `[data-exhibit-status="${id}"]`,
-    );
-    const onStatus = (status: string) => {
-      if (statusEl) {
-        statusEl.textContent = status;
-      }
-    };
-
     try {
       if (id === "nadir") {
-        handles.push(mountNadirExhibit(canvas, { onStatus }));
+        handles.push(mountNadirExhibit(canvas));
       } else if (id === "canopy") {
-        handles.push(mountCanopyExhibit(canvas, { onStatus }));
+        handles.push(mountCanopyExhibit(canvas));
       } else {
-        handles.push(mountObscurafyExhibit(canvas, { onStatus }));
+        handles.push(mountObscurafyExhibit(canvas));
       }
     } catch {
       // Keep project descriptions and links usable if canvas initialization fails.
@@ -167,6 +132,8 @@ const EXHIBIT_META: Record<ExhibitId, { hint: string; initialStatus: string }> =
 
 <style>
   .work-exhibit {
+    content-visibility: auto;
+    contain-intrinsic-size: auto none auto 340px;
     transition:
       border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1),
       box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
@@ -174,10 +141,6 @@ const EXHIBIT_META: Record<ExhibitId, { hint: string; initialStatus: string }> =
   .work-exhibit:hover {
     border-color: color-mix(in oklab, var(--accent) 42%, var(--line));
     box-shadow: var(--hover-shadow);
-  }
-
-  .work-exhibit-bar {
-    background-color: color-mix(in oklab, var(--paper) 82%, transparent);
   }
 
   .work-code-link {

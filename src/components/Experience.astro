@@ -8,7 +8,7 @@ const experience = (await getCollection("experience")).sort(
 ---
 
 <Section id="experience" title="Experience">
-  <div class="mb-10 overflow-hidden rounded-lg border border-line bg-surface">
+  <div class="exp-wave-container mb-10 overflow-hidden rounded-lg border border-line bg-surface">
     <canvas
       id="exp-oscilloscope"
       class="block h-28 w-full select-none"
@@ -114,6 +114,11 @@ const experience = (await getCollection("experience")).sort(
 </script>
 
 <style>
+  .exp-wave-container {
+    content-visibility: auto;
+    contain-intrinsic-size: auto none auto 112px;
+  }
+
   .exp-row {
     transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }

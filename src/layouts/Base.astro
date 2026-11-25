@@ -25,6 +25,7 @@ const {
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <meta id="meta-color-scheme" name="color-scheme" content="dark" />
     <meta id="meta-theme-color" name="theme-color" content="#080808" />
 
     <!-- Preload every weight the first viewport renders -->
@@ -45,6 +46,8 @@ const {
           }
         } catch (e) {}
         document.documentElement.setAttribute("data-theme", theme);
+        var schemeMeta = document.getElementById("meta-color-scheme");
+        if (schemeMeta) schemeMeta.setAttribute("content", theme);
         var meta = document.getElementById("meta-theme-color");
         if (meta) meta.setAttribute("content", theme === "dark" ? "#080808" : "#FAFAFA");
         document.documentElement.classList.add("js");
@@ -53,49 +56,6 @@ const {
   </head>
   <body>
     <slot />
-    <canvas
-      id="xray-overlay-canvas"
-      class="pointer-events-none fixed inset-0 z-30 h-full w-full"
-      aria-hidden="true"
-    ></canvas>
     <Cursor />
-
-    <script>
-      import { mountXrayMode, type XrayHandle } from "../lib/xray-mode";
-
-      const xrayCanvas = document.getElementById("xray-overlay-canvas");
-      let handle: XrayHandle | null = null;
-
-      if (xrayCanvas instanceof HTMLCanvasElement) {
-        try {
-          handle = mountXrayMode(xrayCanvas, (enabled) => {
-            window.dispatchEvent(
-              new CustomEvent("portfolio:xray-change", {
-                detail: { enabled },
-              }),
-            );
-          });
-        } catch {
-          // Keep page functional if overlay setup fails.
-        }
-      }
-
-      const onXrayToggle = () => {
-        handle?.toggle();
-      };
-      window.addEventListener("portfolio:xray-toggle", onXrayToggle);
-
-      window.addEventListener(
-        "pagehide",
-        (event) => {
-          if (!event.persisted) {
-            window.removeEventListener("portfolio:xray-toggle", onXrayToggle);
-            handle?.destroy();
-            handle = null;
-          }
-        },
-        { once: true },
-      );
-    </script>
   </body>
 </html>

@@ -58,81 +58,7 @@ import { SITE, LINKS } from "../data/site";
             </svg>
           </a>
         </div>
-
-        <p class="mt-4 font-mono text-sm text-muted">
-          Slice · Click · Type
-        </p>
       </div>
-
-      <aside
-        data-ascii-dock
-        aria-label="Fluid ASCII simulation controls"
-        class="ascii-dock pointer-events-auto w-full max-w-full self-start rounded-xl border border-line p-2.5 sm:w-auto sm:p-3 lg:self-end"
-      >
-        <div class="flex flex-col gap-2">
-          <div class="segmented-group" role="radiogroup" aria-label="Simulation mode">
-            <label class="segmented-option">
-              <input
-                type="radio"
-                name="hero-mode"
-                value="shatter"
-                class="segmented-input"
-                checked
-              />
-              <span class="segmented-label">Shatter</span>
-            </label>
-            <label class="segmented-option">
-              <input
-                type="radio"
-                name="hero-mode"
-                value="topography"
-                class="segmented-input"
-              />
-              <span class="segmented-label">Topography</span>
-            </label>
-            <label class="segmented-option">
-              <input
-                type="radio"
-                name="hero-mode"
-                value="vortex"
-                class="segmented-input"
-              />
-              <span class="segmented-label">Vortex</span>
-            </label>
-          </div>
-
-          <div class="segmented-group self-start" role="radiogroup" aria-label="Character set">
-            <label class="segmented-option">
-              <input
-                type="radio"
-                name="hero-charset"
-                value="ascii"
-                class="segmented-input"
-                checked
-              />
-              <span class="segmented-label">Ascii</span>
-            </label>
-            <label class="segmented-option">
-              <input
-                type="radio"
-                name="hero-charset"
-                value="braille"
-                class="segmented-input"
-              />
-              <span class="segmented-label">Braille</span>
-            </label>
-            <label class="segmented-option">
-              <input
-                type="radio"
-                name="hero-charset"
-                value="blocks"
-                class="segmented-input"
-              />
-              <span class="segmented-label">Blocks</span>
-            </label>
-          </div>
-        </div>
-      </aside>
     </div>
   </div>
 </section>
@@ -151,16 +77,10 @@ import { SITE, LINKS } from "../data/site";
     transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .ascii-dock {
-    background-color: color-mix(in oklab, var(--paper) 86%, transparent);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .btn-primary,
     .btn-arrow {
-      transition: none;
+      transition: opacity 0.18s ease;
     }
     .btn-primary:hover {
       transform: none;
@@ -170,178 +90,25 @@ import { SITE, LINKS } from "../data/site";
 </style>
 
 <script>
-  import {
-    mountHeroAscii,
-    type AsciiCharset,
-    type HeroAsciiHandle,
-    type HeroFluidMode,
-  } from "../lib/ascii-engine";
-  import { playTick } from "../lib/synth-audio";
+  import { mountHeroAscii, type HeroAsciiHandle } from "../lib/ascii-engine";
 
-  const heroSection = document.getElementById("hero");
   const canvas = document.getElementById("hero-fluid-canvas");
   const clearElement = document.getElementById("hero-horizon");
-  const modeInputs = Array.from(
-    document.querySelectorAll<HTMLInputElement>('input[name="hero-mode"]'),
-  );
-  const charsetInputs = Array.from(
-    document.querySelectorAll<HTMLInputElement>('input[name="hero-charset"]'),
-  );
 
   let engine: HeroAsciiHandle | null = null;
 
   if (canvas instanceof HTMLCanvasElement) {
-    const initialMode =
-      (modeInputs.find((input) => input.checked)?.value as HeroFluidMode) ??
-      "shatter";
-    const initialCharset =
-      (charsetInputs.find((input) => input.checked)?.value as AsciiCharset) ??
-      "ascii";
-
     try {
-      engine = mountHeroAscii(canvas, {
-        clearElement,
-        initialMode,
-        initialCharset,
-      });
+      engine = mountHeroAscii(canvas, { clearElement });
     } catch {
-      // Keep static fallback controls accessible if canvas setup fails.
+      // Keep static fallback layout accessible if canvas setup fails.
     }
   }
-
-  modeInputs.forEach((input) => {
-    input.addEventListener("change", () => {
-      if (!engine || !input.checked) return;
-      engine.setMode(input.value as HeroFluidMode);
-      playTick();
-    });
-  });
-
-  charsetInputs.forEach((input) => {
-    input.addEventListener("change", () => {
-      if (!engine || !input.checked) return;
-      engine.setCharset(input.value as AsciiCharset);
-      playTick();
-    });
-  });
-
-  if (heroSection && canvas instanceof HTMLCanvasElement) {
-    let downX = 0;
-    let downY = 0;
-    let pointerDownOnHero = false;
-
-    heroSection.addEventListener(
-      "pointerdown",
-      (event) => {
-        const target = event.target as Element | null;
-        if (target?.closest("a, button, label, input, [data-ascii-dock]")) {
-          pointerDownOnHero = false;
-          return;
-        }
-        pointerDownOnHero = true;
-        downX = event.clientX;
-        downY = event.clientY;
-      },
-      { passive: true },
-    );
-
-    heroSection.addEventListener("click", (event) => {
-      if (!engine || !pointerDownOnHero) return;
-      pointerDownOnHero = false;
-      const target = event.target as Element | null;
-      if (target?.closest("a, button, label, input, [data-ascii-dock]")) return;
-      if (Math.hypot(event.clientX - downX, event.clientY - downY) > 6) return;
-
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return;
-      const normX = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-      const normY = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
-      engine.triggerBurst(normX, normY);
-    });
-  }
-
-  // ── Live keyboard typography injection ────────────────────────────
-  const MAX_TYPED_CHARS = 16;
-  const RESET_DELAY_MS = 6000;
-  let typedWord = "";
-  let resetTimer: number | null = null;
-
-  function clearResetTimer() {
-    if (resetTimer !== null) {
-      window.clearTimeout(resetTimer);
-      resetTimer = null;
-    }
-  }
-
-  function scheduleReset() {
-    clearResetTimer();
-    resetTimer = window.setTimeout(() => {
-      typedWord = "";
-      resetTimer = null;
-      engine?.resetDisplayText();
-    }, RESET_DELAY_MS);
-  }
-
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (!engine) return;
-    if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (event.key === "`" || event.code === "Backquote") return;
-
-    const active = document.activeElement;
-    if (
-      active instanceof HTMLElement &&
-      (active.tagName === "INPUT" ||
-        active.tagName === "TEXTAREA" ||
-        active.tagName === "SELECT" ||
-        active.isContentEditable)
-    ) {
-      return;
-    }
-
-    if (event.key === "Escape") {
-      clearResetTimer();
-      typedWord = "";
-      engine.resetDisplayText();
-      return;
-    }
-
-    if (event.key === "Backspace") {
-      if (typedWord.length === 0) return;
-      event.preventDefault();
-      typedWord = typedWord.slice(0, -1);
-      if (typedWord.length === 0) {
-        clearResetTimer();
-        engine.resetDisplayText();
-      } else {
-        engine.setDisplayText(typedWord);
-        scheduleReset();
-      }
-      playTick();
-      return;
-    }
-
-    if (/^[A-Za-z0-9 ]$/.test(event.key)) {
-      // Preserve normal Spacebar scrolling when no word is being typed yet.
-      if (event.key === " " && typedWord.length === 0) return;
-      if (event.key === " ") event.preventDefault();
-
-      if (typedWord.length < MAX_TYPED_CHARS) {
-        typedWord += event.key;
-        engine.setDisplayText(typedWord);
-        playTick();
-      }
-      scheduleReset();
-    }
-  };
-
-  window.addEventListener("keydown", onKeyDown);
 
   window.addEventListener(
     "pagehide",
     (event) => {
       if (!event.persisted) {
-        clearResetTimer();
-        window.removeEventListener("keydown", onKeyDown);
         engine?.destroy();
         engine = null;
       }

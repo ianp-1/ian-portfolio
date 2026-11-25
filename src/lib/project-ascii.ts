@@ -7,11 +7,6 @@ import {
   resolveThemeColors,
   rgbToCss,
 } from "./ascii-atlas";
-import { playBurst, playLock, playTick } from "./synth-audio";
-
-export interface ExhibitOptions {
-  onStatus?: (status: string) => void;
-}
 
 export interface DestroyableHandle {
   destroy: () => void;
@@ -289,8 +284,31 @@ function mountCanvasLoop(
   }
   window.addEventListener("resize", syncSize, { passive: true });
 
+  // Attach directly to the container with content-visibility: auto because
+  // contentvisibilityautostatechange does not bubble in some browsers.
+  const cvTarget = canvas.closest<HTMLElement>(
+    ".work-exhibit, .exp-wave-container, .horizon-wave",
+  );
+  const supportsContentVisibility =
+    typeof document !== "undefined" &&
+    "contentVisibility" in document.documentElement.style &&
+    cvTarget !== null;
+
   let intersectionObserver: IntersectionObserver | null = null;
-  if (typeof IntersectionObserver !== "undefined") {
+  let onContentVisibility: ((event: Event) => void) | null = null;
+
+  if (supportsContentVisibility && cvTarget) {
+    onContentVisibility = (event: Event) => {
+      const cvEvent = event as Event & { skipped?: boolean };
+      isVisible = !cvEvent.skipped;
+      if (isVisible) {
+        syncSize();
+        renderNow();
+      }
+      startOrDrawStatic();
+    };
+    cvTarget.addEventListener("contentvisibilityautostatechange", onContentVisibility);
+  } else if (typeof IntersectionObserver !== "undefined") {
     intersectionObserver = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
@@ -298,7 +316,7 @@ function mountCanvasLoop(
         isVisible = entry.isIntersecting;
         startOrDrawStatic();
       },
-      { threshold: 0.01 },
+      { rootMargin: "200px" },
     );
     intersectionObserver.observe(canvas);
   }
@@ -350,6 +368,12 @@ function mountCanvasLoop(
       window.removeEventListener("pointercancel", onPointerCancel);
       window.removeEventListener("resize", syncSize);
       document.removeEventListener("visibilitychange", onVisibility);
+      if (cvTarget && onContentVisibility) {
+        cvTarget.removeEventListener(
+          "contentvisibilityautostatechange",
+          onContentVisibility,
+        );
+      }
       resizeObserver?.disconnect();
       intersectionObserver?.disconnect();
       stopTheme();
@@ -464,10 +488,7 @@ function projectWorldToView(
 
 export function mountNadirExhibit(
   canvas: HTMLCanvasElement,
-  options?: ExhibitOptions,
 ): DestroyableHandle {
-  options?.onStatus?.("Orbit active");
-
   let yaw = 0.42;
   let pitch = 0.27;
   let velYaw = 0;
@@ -721,7 +742,6 @@ export function mountNadirExhibit(
       onPointerDown: () => {
         velYaw = 0;
         velPitch = 0;
-        canvas.style.cursor = "grabbing";
       },
       onPointerMove: (_nx, _ny, dxPx, dyPx, dt, state) => {
         if (state.isDragging) {
@@ -737,11 +757,9 @@ export function mountNadirExhibit(
           const pxX = state.pointerX * state.widthCss;
           const pxY = state.pointerY * state.heightCss;
           hoveredNode = findNearestVisibleNode(pxX, pxY, state.widthCss, state.heightCss, 44);
-          canvas.style.cursor = hoveredNode ? "pointer" : "grab";
         }
       },
       onPointerUp: (_nx, _ny, pxX, pxY, dragDistPx, state) => {
-        canvas.style.cursor = hoveredNode ? "pointer" : "grab";
         if (dragDistPx >= 10) return;
         const hit = findNearestVisibleNode(pxX, pxY, state.widthCss, state.heightCss, 50);
         if (hit) {
@@ -749,22 +767,16 @@ export function mountNadirExhibit(
           quorumOrigin = hit;
           quorumAge = state.reducedMotion ? 0.28 : 0;
           autoSpinPause = 2.6;
-          playLock();
-          options?.onStatus?.(hit.status);
         }
       },
       onPointerLeave: () => {
         hoveredNode = null;
-        canvas.style.cursor = "grab";
       },
     },
   );
 
-  canvas.style.cursor = "grab";
-
   return {
     destroy: () => {
-      canvas.style.cursor = "";
       controller.destroy();
     },
   };
@@ -782,45 +794,27 @@ interface PayoutWave {
 
 export function mountCanopyExhibit(
   canvas: HTMLCanvasElement,
-  options?: ExhibitOptions,
 ): DestroyableHandle {
-  options?.onStatus?.("1004 hPa · ambient");
-
   let eyeX = 0.56;
   let eyeY = 0.48;
   let stormIntensity = 0.12; // 1012 - 0.12*64 = 1004 hPa
   let escrowTriggered = false;
-  let lastReportedHpa = 1004;
-  let lastBurstMs = 0;
+  let lastWaveMs = 0;
   const payoutWaves: PayoutWave[] = [];
 
   const getPressureHpa = (intensity: number): number =>
     Math.round(1012 - clamp01(intensity) * 64);
 
-  const syncStatusAndWaves = (allowAudio: boolean) => {
+  const syncWaves = () => {
     const hpa = getPressureHpa(stormIntensity);
     if (hpa < 980) {
-      const now = performance.now();
       if (!escrowTriggered) {
         escrowTriggered = true;
+        lastWaveMs = performance.now();
         payoutWaves.push({ x: eyeX, y: eyeY, age: isReducedMotionPreferred() ? 0.34 : 0 });
-        if (allowAudio && now - lastBurstMs > 450) {
-          lastBurstMs = now;
-          playBurst();
-        }
-        lastReportedHpa = hpa;
-        options?.onStatus?.(`${hpa} hPa · payout triggered`);
-      } else if (Math.abs(hpa - lastReportedHpa) >= 3) {
-        lastReportedHpa = hpa;
-        options?.onStatus?.(`${hpa} hPa · payout triggered`);
       }
     } else if (escrowTriggered && hpa >= 984) {
       escrowTriggered = false;
-      lastReportedHpa = hpa;
-      options?.onStatus?.(`${hpa} hPa · ambient`);
-    } else if (!escrowTriggered && Math.abs(hpa - lastReportedHpa) >= 4) {
-      lastReportedHpa = hpa;
-      options?.onStatus?.(`${hpa} hPa · ambient`);
     }
   };
 
@@ -1024,19 +1018,18 @@ export function mountCanopyExhibit(
           stormIntensity += (0.12 - stormIntensity) * (1 - Math.exp(-dt * 0.26));
         }
 
-        syncStatusAndWaves(true);
+        syncWaves();
       },
       onPointerDown: (normX, normY) => {
         eyeX = normX;
         eyeY = normY;
         stormIntensity = Math.max(stormIntensity, 0.76);
         const now = performance.now();
-        if (escrowTriggered && now - lastBurstMs > 450) {
-          lastBurstMs = now;
+        if (escrowTriggered && now - lastWaveMs > 450) {
+          lastWaveMs = now;
           payoutWaves.push({ x: eyeX, y: eyeY, age: 0 });
-          playBurst();
         }
-        syncStatusAndWaves(true);
+        syncWaves();
       },
       onPointerMove: (normX, normY, dxPx, dyPx, _dt, state) => {
         const movePx = Math.hypot(dxPx, dyPx);
@@ -1044,7 +1037,7 @@ export function mountCanopyExhibit(
         eyeY += (normY - eyeY) * 0.35;
         const boost = state.isDragging ? 0.045 + movePx * 0.004 : 0.015 + movePx * 0.0032;
         stormIntensity = clamp01(stormIntensity + Math.min(0.14, boost));
-        syncStatusAndWaves(true);
+        syncWaves();
       },
     },
   );
@@ -1109,10 +1102,7 @@ function sampleDisguisedGlyph(
 
 export function mountObscurafyExhibit(
   canvas: HTMLCanvasElement,
-  options?: ExhibitOptions,
 ): DestroyableHandle {
-  options?.onStatus?.("Scanner active");
-
   let autoRedact = false;
   let apertureX = 0.5;
   let apertureY = 0.5;
@@ -1137,19 +1127,8 @@ export function mountObscurafyExhibit(
     return next;
   };
 
-  const updateLocks = (allowAudio: boolean) => {
-    const next = computeLockedTargets(apertureX, apertureY, autoRedact);
-    if (allowAudio) {
-      let gainedNew = false;
-      for (const id of next) {
-        if (!lockedIds.has(id)) {
-          gainedNew = true;
-          break;
-        }
-      }
-      if (gainedNew) playLock();
-    }
-    lockedIds = next;
+  const updateLocks = () => {
+    lockedIds = computeLockedTargets(apertureX, apertureY, autoRedact);
   };
 
   const controller = mountCanvasLoop(
@@ -1314,19 +1293,19 @@ export function mountObscurafyExhibit(
         if (state.pointerActive > 0.1 || hasUserAimed) {
           apertureX += (state.pointerX - apertureX) * 0.35;
           apertureY += (state.pointerY - apertureY) * 0.35;
-          updateLocks(state.pointerActive > 0.15);
+          updateLocks();
         } else {
-          // Gentle patrol sweep before first pointer interaction (silent audio)
+          // Gentle patrol sweep when idle
           apertureX = 0.5 + Math.cos(state.timeSec * 0.65) * 0.28;
           apertureY = 0.5 + Math.sin(state.timeSec * 0.88) * 0.24;
-          updateLocks(false);
+          updateLocks();
         }
       },
       onPointerMove: (normX, normY) => {
         hasUserAimed = true;
         apertureX = normX;
         apertureY = normY;
-        updateLocks(true);
+        updateLocks();
       },
       onPointerUp: (normX, normY, _pxX, _pxY, dragDistPx) => {
         if (dragDistPx >= 12) return;
@@ -1334,13 +1313,7 @@ export function mountObscurafyExhibit(
         apertureX = normX;
         apertureY = normY;
         autoRedact = !autoRedact;
-        updateLocks(true);
-        if (autoRedact) {
-          playLock();
-          options?.onStatus?.("Locked · 4/4 masked");
-        } else {
-          options?.onStatus?.("Scanner active");
-        }
+        updateLocks();
       },
       onPointerLeave: () => {
         hasUserAimed = false;
@@ -1348,11 +1321,8 @@ export function mountObscurafyExhibit(
     },
   );
 
-  canvas.style.cursor = "crosshair";
-
   return {
     destroy: () => {
-      canvas.style.cursor = "";
       controller.destroy();
     },
   };
@@ -1432,21 +1402,13 @@ export function mountExperienceOscilloscope(
   let cursorNorm = 0.5 / safeCount;
   let cursorTargetNorm = 0.5 / safeCount;
   let hoverCallback: ((idx: number) => void) | null = null;
-  let lastTickMs = 0;
 
-  const setActiveSlot = (nextIdx: number, notifyHover: boolean, allowAudio: boolean) => {
+  const setActiveSlot = (nextIdx: number, notifyHover: boolean) => {
     const clamped = clamp(nextIdx, 0, safeCount - 1);
     if (clamped !== activeIdx) {
       prevIdx = activeIdx;
       activeIdx = clamped;
       morph = isReducedMotionPreferred() ? 1 : 0;
-      if (allowAudio) {
-        const now = performance.now();
-        if (now - lastTickMs > 65) {
-          lastTickMs = now;
-          playTick();
-        }
-      }
       if (notifyHover) {
         hoverCallback?.(activeIdx);
       }
@@ -1646,13 +1608,13 @@ export function mountExperienceOscilloscope(
         cursorTargetNorm = normX;
         if (state.reducedMotion) cursorNorm = normX;
         const idx = Math.floor(clamp01(normX) * safeCount);
-        setActiveSlot(idx, true, true);
+        setActiveSlot(idx, true);
       },
       onPointerMove: (normX, _ny, _dx, _dy, _dt, state) => {
         cursorTargetNorm = normX;
         if (state.reducedMotion) cursorNorm = normX;
         const idx = Math.floor(clamp01(normX) * safeCount);
-        setActiveSlot(idx, true, true);
+        setActiveSlot(idx, true);
       },
       onPointerLeave: (state) => {
         cursorTargetNorm = (activeIdx + 0.5) / safeCount;
@@ -1661,8 +1623,6 @@ export function mountExperienceOscilloscope(
     },
   );
 
-  canvas.style.cursor = "ew-resize";
-
   return {
     setRoleIndex: (idx: number) => {
       const clamped = clamp(Math.round(idx), 0, safeCount - 1);
@@ -1670,14 +1630,13 @@ export function mountExperienceOscilloscope(
       if (isReducedMotionPreferred()) {
         cursorNorm = cursorTargetNorm;
       }
-      setActiveSlot(clamped, false, false);
+      setActiveSlot(clamped, false);
       controller.requestRedraw();
     },
     setHoverCallback: (cb: (idx: number) => void) => {
       hoverCallback = cb;
     },
     destroy: () => {
-      canvas.style.cursor = "";
       controller.destroy();
     },
   };
