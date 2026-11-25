@@ -51,6 +51,7 @@ uniform vec3 uAccentColor;
 uniform vec3 uAccentSecondaryColor;
 uniform vec4 uClearRect;
 uniform float uHasClearRect;
+uniform float uScrollDissolve;
 
 const float PI = 3.14159265359;
 
@@ -161,7 +162,14 @@ void main() {
   float primaryMix = smoothstep(0.22, 0.72, acc);
   vec3 glyphColor = mix(fieldColor, uAccentColor, primaryMix);
 
-  float visibility = clearMask * smoothstep(0.085, 0.24, max(ink, acc * 0.48));
+  float stayMask = 1.0;
+  if (uScrollDissolve > 0.001) {
+    float cellHash = fract(sin(cellIdx.x * 12.9898 + cellIdx.y * 78.233) * 43758.5453);
+    float peelOrder = clamp((cellCenterUv.y - 0.22) * 0.92 + cellHash * 0.34, 0.02, 0.94);
+    stayMask = 1.0 - smoothstep(peelOrder - 0.05, peelOrder + 0.04, uScrollDissolve);
+  }
+
+  float visibility = clearMask * smoothstep(0.085, 0.24, max(ink, acc * 0.48)) * stayMask;
   vec3 outRgb = mix(uPaperColor, glyphColor, glyphAlpha * visibility);
 
   fragColor = vec4(outRgb, 1.0);

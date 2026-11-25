@@ -9,7 +9,10 @@ const experience = (await getCollection("experience")).sort(
 
 <Section id="experience" title="Experience">
   <div class="exp-sticky-bar sticky top-16 z-20 -mx-2 mb-8 px-2 py-2">
-    <div class="overflow-hidden rounded-lg border border-line bg-surface">
+    <div
+      data-assemble-target="exp-bar"
+      class="overflow-hidden rounded-lg border border-line bg-surface"
+    >
       <canvas
         id="exp-oscilloscope"
         class="block h-20 w-full select-none"
