@@ -56,6 +56,40 @@ const {
   </head>
   <body>
     <slot />
+    <canvas
+      id="ascii-nanobot-canvas"
+      class="pointer-events-none fixed inset-0 z-20 h-full w-full select-none"
+      aria-hidden="true"
+    ></canvas>
     <Cursor />
+
+    <script>
+      import {
+        mountAsciiNanobots,
+        type NanobotHandle,
+      } from "../lib/ascii-nanobots";
+
+      const canvas = document.getElementById("ascii-nanobot-canvas");
+      let handle: NanobotHandle | null = null;
+
+      if (canvas instanceof HTMLCanvasElement) {
+        try {
+          handle = mountAsciiNanobots(canvas);
+        } catch {
+          // Keep page content visible if nanobot canvas initialization fails.
+        }
+      }
+
+      if (handle) {
+        const onPageHide = (event: PageTransitionEvent) => {
+          if (!event.persisted) {
+            handle?.destroy();
+            handle = null;
+            window.removeEventListener("pagehide", onPageHide);
+          }
+        };
+        window.addEventListener("pagehide", onPageHide);
+      }
+    </script>
   </body>
 </html>

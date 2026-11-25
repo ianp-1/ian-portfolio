@@ -33,8 +33,9 @@ function toExhibitId(rawId: string): ExhibitId {
 
         return (
           <article
+            data-assemble="project"
             class:list={[
-              "reveal grid grid-cols-1 items-center gap-8 py-12 first:pt-2 last:pb-2 lg:gap-12 lg:py-16",
+              "grid grid-cols-1 items-center gap-8 py-12 first:pt-2 last:pb-2 lg:gap-12 lg:py-16",
               isReversed
                 ? "lg:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.35fr)]"
                 : "lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.9fr)]",

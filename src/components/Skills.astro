@@ -4,19 +4,10 @@ import { SKILLS } from "../data/site";
 ---
 
 <Section id="skills" title="Stack">
-  <div class="stack-fabric-container mb-10 overflow-hidden rounded-lg border border-line bg-surface">
-    <canvas
-      id="stack-fabric"
-      class="block h-32 w-full select-none"
-      style="touch-action: pan-y;"
-      aria-hidden="true"
-    ></canvas>
-  </div>
-
   <div data-stack-grid class="grid grid-cols-1 gap-x-10 gap-y-10 sm:grid-cols-3">
     {
       SKILLS.map((group, colIdx) => (
-        <div class="reveal" data-stack-col={colIdx}>
+        <div data-assemble="stack-col" data-stack-col={colIdx}>
           <h3 data-stack-heading class="mb-4 font-mono text-sm font-medium text-muted">
             {group.group}
           </h3>
@@ -36,80 +27,7 @@ import { SKILLS } from "../data/site";
   </div>
 </Section>
 
-<script>
-  import {
-    mountStackFabric,
-    type StackFabricColumn,
-    type StackFabricHandle,
-  } from "../lib/project-ascii";
-
-  const canvas = document.getElementById("stack-fabric");
-  const grid = document.querySelector<HTMLElement>("[data-stack-grid]");
-  const colElements = Array.from(
-    document.querySelectorAll<HTMLElement>("[data-stack-col]"),
-  );
-
-  let fabric: StackFabricHandle | null = null;
-
-  if (canvas instanceof HTMLCanvasElement && colElements.length > 0) {
-    const columns: StackFabricColumn[] = colElements.map((colEl) => ({
-      label:
-        colEl.querySelector<HTMLElement>("[data-stack-heading]")?.textContent?.trim() ??
-        "",
-      items: Array.from(colEl.querySelectorAll<HTMLElement>("[data-stack-item]")).map(
-        (el) => el.dataset.stackItem ?? el.textContent?.trim() ?? "",
-      ),
-    }));
-
-    try {
-      fabric = mountStackFabric(canvas, columns);
-    } catch {
-      // Keep static stack columns readable if canvas initialization fails.
-    }
-  }
-
-  colElements.forEach((colEl) => {
-    const colIdx = Number(colEl.dataset.stackCol ?? -1);
-    if (Number.isNaN(colIdx) || colIdx < 0) return;
-
-    colEl.addEventListener("mouseenter", () => {
-      fabric?.setActiveColumn(colIdx, null);
-    });
-    colEl.addEventListener("focusin", () => {
-      fabric?.setActiveColumn(colIdx, null);
-    });
-
-    colEl.querySelectorAll<HTMLElement>("[data-stack-item]").forEach((itemEl) => {
-      const label = itemEl.dataset.stackItem ?? itemEl.textContent?.trim() ?? null;
-      itemEl.addEventListener("mouseenter", () => {
-        fabric?.setActiveColumn(colIdx, label);
-      });
-      itemEl.addEventListener("mouseleave", () => {
-        fabric?.setActiveColumn(colIdx, null);
-      });
-    });
-  });
-
-  grid?.addEventListener("mouseleave", () => {
-    fabric?.setActiveColumn(-1, null);
-  });
-
-  window.addEventListener(
-    "pagehide",
-    () => {
-      fabric?.destroy();
-      fabric = null;
-    },
-    { once: true },
-  );
-</script>
-
 <style>
-  .stack-fabric-container {
-    content-visibility: auto;
-    contain-intrinsic-size: auto none auto 128px;
-  }
-
   /* Slide + tick built from transform only: no layout-property animation. */
   .skill-item {
     position: relative;

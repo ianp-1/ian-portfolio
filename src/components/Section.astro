@@ -9,7 +9,10 @@ const { id, title, meta } = Astro.props;
 ---
 
 <section id={id} class="mx-auto max-w-5xl scroll-mt-24 px-6 py-20 md:px-10 md:py-28">
-  <div class="section-head reveal relative mb-10 flex items-baseline justify-between gap-4 border-b border-line pb-4">
+  <div
+    data-assemble="heading"
+    class="section-head relative mb-10 flex items-baseline justify-between gap-4 border-b border-line pb-4"
+  >
     <h2 class="font-sans text-heading font-semibold leading-[1.1] tracking-[-0.02em] text-ink">
       {title}
     </h2>
@@ -19,8 +22,8 @@ const { id, title, meta } = Astro.props;
 </section>
 
 <style>
-  /* Accent glint: when the section header reveals, its hairline draws in
-     accent left-to-right, then fades back to the neutral rule. A passing
+  /* Accent glint: when the section header assembles solid, its hairline draws
+     in accent left-to-right, then fades back to the neutral rule. A passing
      voice, not a persistent color. */
   .section-head::after {
     content: "";
@@ -34,7 +37,7 @@ const { id, title, meta } = Astro.props;
     transform-origin: left center;
   }
   @media (prefers-reduced-motion: no-preference) {
-    :global(html.js) .section-head.is-visible::after {
+    :global(html.js) .section-head[data-asm-state="solid"]::after {
       animation: rule-glint 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
     }
   }

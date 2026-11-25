@@ -29,30 +29,3 @@ import Footer from "../components/Footer.astro";
 
   <Footer />
 </Base>
-
-<script>
-  // Reveal-on-scroll: content is visible by default (see .reveal in global.css);
-  // JS only enhances with a staggered entrance when motion is allowed.
-  const prefersReduced = window.matchMedia(
-    "(prefers-reduced-motion: reduce)",
-  ).matches;
-
-  const items = Array.from(document.querySelectorAll<HTMLElement>(".reveal"));
-
-  if (prefersReduced || !("IntersectionObserver" in window)) {
-    items.forEach((el) => el.classList.add("is-visible"));
-  } else {
-    const io = new IntersectionObserver(
-      (entries, obs) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("is-visible");
-            obs.unobserve(entry.target);
-          }
-        });
-      },
-      { rootMargin: "0px 0px -12% 0px", threshold: 0.08 },
-    );
-    items.forEach((el) => io.observe(el));
-  }
-</script>

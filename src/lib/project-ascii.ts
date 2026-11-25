@@ -14,17 +14,8 @@ export interface DestroyableHandle {
 
 export interface OscilloscopeHandle {
   setRoleIndex: (idx: number) => void;
+  setScrollProgress: (norm: number) => void;
   setHoverCallback: (cb: (idx: number) => void) => void;
-  destroy: () => void;
-}
-
-export interface StackFabricColumn {
-  label: string;
-  items: readonly string[];
-}
-
-export interface StackFabricHandle {
-  setActiveColumn: (colIdx: number, itemLabel?: string | null) => void;
   destroy: () => void;
 }
 
@@ -296,9 +287,7 @@ function mountCanvasLoop(
 
   // Attach directly to the container with content-visibility: auto because
   // contentvisibilityautostatechange does not bubble in some browsers.
-  const cvTarget = canvas.closest<HTMLElement>(
-    ".work-exhibit, .exp-wave-container, .stack-fabric-container, .horizon-wave",
-  );
+  const cvTarget = canvas.closest<HTMLElement>(".work-exhibit");
   const supportsContentVisibility =
     typeof document !== "undefined" &&
     "contentVisibility" in document.documentElement.style &&
@@ -1404,6 +1393,7 @@ export function mountExperienceOscilloscope(
   canvas: HTMLCanvasElement,
   roleCount: number,
   labels?: string[],
+  periods?: string[],
 ): OscilloscopeHandle {
   const safeCount = Math.max(1, Math.floor(roleCount || 1));
   let activeIdx = 0;
@@ -1411,6 +1401,8 @@ export function mountExperienceOscilloscope(
   let morph = 1;
   let cursorNorm = 0.5 / safeCount;
   let cursorTargetNorm = 0.5 / safeCount;
+  let scrollProgressNorm: number | null = null;
+  let isPointerHovering = false;
   let hoverCallback: ((idx: number) => void) | null = null;
 
   const setActiveSlot = (nextIdx: number, notifyHover: boolean) => {
@@ -1423,6 +1415,18 @@ export function mountExperienceOscilloscope(
         hoverCallback?.(activeIdx);
       }
     }
+  };
+
+  const restoreScanCursor = (reducedMotion: boolean) => {
+    isPointerHovering = false;
+    if (scrollProgressNorm !== null) {
+      cursorTargetNorm = scrollProgressNorm;
+      const scrollSlot = clamp(Math.floor(scrollProgressNorm * safeCount), 0, safeCount - 1);
+      setActiveSlot(scrollSlot, true);
+    } else {
+      cursorTargetNorm = (activeIdx + 0.5) / safeCount;
+    }
+    if (reducedMotion) cursorNorm = cursorTargetNorm;
   };
 
   const plotBrailleTrace = (
@@ -1486,20 +1490,22 @@ export function mountExperienceOscilloscope(
       const { widthCss, heightCss, timeSec, theme } = state;
       const padX = 14;
       const usableW = Math.max(60, widthCss - padX * 2);
-      const cellW = widthCss < 420 ? 8 : 9;
+      const cellW = widthCss < 440 ? 8 : 9;
       const cols = Math.max(24, Math.floor(usableW / cellW));
       const actualCellW = usableW / cols;
 
-      const waveTop = 24;
-      const ruleY = heightCss - 24;
-      const waveHeight = Math.max(40, ruleY - waveTop - 4);
-      const waveRows = 4;
+      const headerY = 12;
+      const waveTop = 21;
+      const ruleY = Math.max(waveTop + 26, heightCss - 20);
+      const waveHeight = Math.max(24, ruleY - waveTop - 3);
+      const waveRows = Math.max(2, Math.min(4, Math.round(waveHeight / 12)));
       const waveCellH = waveHeight / waveRows;
+      const yearY = Math.min(heightCss - 8, ruleY + 11);
 
       const slotW = usableW / safeCount;
 
-      // Horizontal baseline zero-crossing & vertical slot ticks
-      ctx.strokeStyle = rgbToCss(theme.muted, 0.22);
+      // Horizontal baseline zero-crossing & bottom timeline rule
+      ctx.strokeStyle = rgbToCss(theme.muted, 0.2);
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(padX, waveTop + waveHeight * 0.5);
@@ -1512,13 +1518,13 @@ export function mountExperienceOscilloscope(
         const tx = padX + i * slotW;
         ctx.strokeStyle = rgbToCss(theme.muted, 0.24);
         ctx.beginPath();
-        ctx.moveTo(tx, ruleY - 4);
-        ctx.lineTo(tx, ruleY + 4);
+        ctx.moveTo(tx, ruleY - 3);
+        ctx.lineTo(tx, ruleY + 3);
         ctx.stroke();
       }
 
-      // Draw Braille waveforms (Joy Division / Braun monochrome aesthetic)
-      const fontPx = Math.max(HUD_FONT_PX, Math.round(waveCellH * 0.92));
+      // Draw dual-trace Braille waveforms
+      const fontPx = Math.max(HUD_FONT_PX, Math.round(waveCellH * 1.04));
       ctx.font = `500 ${fontPx}px ${CHARSET_FONT_STACK}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -1561,30 +1567,45 @@ export function mountExperienceOscilloscope(
         },
       );
 
-      // Minimal razor-thin vertical hairline marker
+      // Minimal razor-thin vertical scan-head hairline marker
       const cursorX = padX + clamp01(cursorNorm) * usableW;
-      ctx.strokeStyle = rgbToCss(theme.ink, 0.72);
+      const alignedCursorX = Math.round(cursorX) + 0.5;
+      ctx.strokeStyle = rgbToCss(theme.accent, 0.78);
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(Math.round(cursorX) + 0.5, waveTop - 2);
-      ctx.lineTo(Math.round(cursorX) + 0.5, ruleY + 4);
+      ctx.moveTo(alignedCursorX, waveTop - 1);
+      ctx.lineTo(alignedCursorX, ruleY + 3);
       ctx.stroke();
+      ctx.fillStyle = rgbToCss(theme.accent, 0.92);
+      ctx.fillRect(Math.round(cursorX) - 1, ruleY - 1, 3, 3);
 
-      // Top strip: clean active company name
+      // Top strip: active company on left, active period on right (>= 440px)
       const rawRoleName = labels?.[activeIdx] ?? "";
+      const showPeriod = widthCss >= 440;
+      const rawPeriod = showPeriod ? (periods?.[activeIdx] ?? "").trim() : "";
+
       ctx.font = `500 ${HUD_FONT_PX}px ${CHARSET_FONT_STACK}`;
-      const maxLabelW = Math.max(72, widthCss - padX * 2);
+      ctx.textBaseline = "middle";
+
+      let periodReserveW = 0;
+      if (rawPeriod.length > 0) {
+        periodReserveW = ctx.measureText(rawPeriod).width + 16;
+        ctx.textAlign = "right";
+        ctx.fillStyle = rgbToCss(theme.muted, 0.88);
+        ctx.fillText(rawPeriod, widthCss - padX, headerY);
+      }
+
+      const maxLabelW = Math.max(64, usableW - periodReserveW);
       let roleName = rawRoleName;
-      if (ctx.measureText(roleName).width > maxLabelW) {
+      if (roleName.length > 0 && ctx.measureText(roleName).width > maxLabelW) {
         while (roleName.length > 3 && ctx.measureText(`${roleName}...`).width > maxLabelW) {
           roleName = roleName.slice(0, -1).trimEnd();
         }
         roleName = `${roleName}...`;
       }
       ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
       ctx.fillStyle = rgbToCss(theme.ink, 0.92);
-      ctx.fillText(roleName, padX, 13);
+      ctx.fillText(roleName, padX, headerY);
 
       // Bottom rule crisp year ticks (2026 -> 2025 -> 2024 aligned with newest-first slots)
       const yearTicks: ReadonlyArray<{ year: string; norm: number; align: CanvasTextAlign }> = [
@@ -1604,7 +1625,7 @@ export function mountExperienceOscilloscope(
         const near = Math.abs(cursorNorm - tick.norm) < 0.22;
         ctx.textAlign = tick.align;
         ctx.fillStyle = rgbToCss(near ? theme.ink : theme.muted, near ? 0.98 : 0.85);
-        ctx.fillText(tick.year, tx, ruleY + 12);
+        ctx.fillText(tick.year, tx, yearY);
       }
     },
     {
@@ -1615,20 +1636,26 @@ export function mountExperienceOscilloscope(
         cursorNorm += (cursorTargetNorm - cursorNorm) * (1 - Math.exp(-dt * 14));
       },
       onPointerDown: (normX, _ny, _px, _py, state) => {
+        isPointerHovering = true;
         cursorTargetNorm = normX;
         if (state.reducedMotion) cursorNorm = normX;
         const idx = Math.floor(clamp01(normX) * safeCount);
         setActiveSlot(idx, true);
       },
       onPointerMove: (normX, _ny, _dx, _dy, _dt, state) => {
+        isPointerHovering = true;
         cursorTargetNorm = normX;
         if (state.reducedMotion) cursorNorm = normX;
         const idx = Math.floor(clamp01(normX) * safeCount);
         setActiveSlot(idx, true);
       },
+      onPointerUp: (normX, normY, _px, _py, _dragDistPx, state) => {
+        if (normX <= 0 || normX >= 1 || normY <= 0 || normY >= 1) {
+          restoreScanCursor(state.reducedMotion);
+        }
+      },
       onPointerLeave: (state) => {
-        cursorTargetNorm = (activeIdx + 0.5) / safeCount;
-        if (state.reducedMotion) cursorNorm = cursorTargetNorm;
+        restoreScanCursor(state.reducedMotion);
       },
     },
   );
@@ -1636,12 +1663,25 @@ export function mountExperienceOscilloscope(
   return {
     setRoleIndex: (idx: number) => {
       const clamped = clamp(Math.round(idx), 0, safeCount - 1);
-      cursorTargetNorm = (clamped + 0.5) / safeCount;
-      if (isReducedMotionPreferred()) {
-        cursorNorm = cursorTargetNorm;
+      if (!isPointerHovering) {
+        cursorTargetNorm = (clamped + 0.5) / safeCount;
+        if (isReducedMotionPreferred()) {
+          cursorNorm = cursorTargetNorm;
+        }
       }
       setActiveSlot(clamped, false);
       controller.requestRedraw();
+    },
+    setScrollProgress: (norm: number) => {
+      const clampedNorm = clamp01(norm);
+      scrollProgressNorm = clampedNorm;
+      if (!isPointerHovering) {
+        cursorTargetNorm = clampedNorm;
+        if (isReducedMotionPreferred()) {
+          cursorNorm = cursorTargetNorm;
+          controller.requestRedraw();
+        }
+      }
     },
     setHoverCallback: (cb: (idx: number) => void) => {
       hoverCallback = cb;
@@ -1649,339 +1689,5 @@ export function mountExperienceOscilloscope(
     destroy: () => {
       controller.destroy();
     },
-  };
-}
-
-/* -------------------------------------------------------------------------- */
-/* 5. HORIZON ASCII: Reactive Signal Wave Band Bridging into #contact         */
-/* -------------------------------------------------------------------------- */
-
-export function mountHorizonAscii(canvas: HTMLCanvasElement): DestroyableHandle {
-  const controller = mountCanvasLoop(canvas, (ctx, state) => {
-    const { widthCss, heightCss, timeSec, theme, pointerX, pointerY, pointerActive } = state;
-    const cellW = 10;
-    const cellH = Math.max(15, heightCss / 5);
-    const cols = Math.max(24, Math.floor(widthCss / cellW));
-    const rows = Math.max(3, Math.min(5, Math.round(heightCss / cellH)));
-    const actualCellW = widthCss / cols;
-    const actualCellH = heightCss / rows;
-
-    const fontPx = Math.max(HUD_FONT_PX, Math.round(actualCellH * 0.84));
-    ctx.font = `500 ${fontPx}px ${CHARSET_FONT_STACK}`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    for (let row = 0; row < rows; row++) {
-      const ny = (row + 0.5) / rows;
-      for (let col = 0; col < cols; col++) {
-        const nx = (col + 0.5) / cols;
-
-        const edgeFade = Math.sin(nx * Math.PI);
-        const wavePrimary =
-          0.5 +
-          Math.sin(nx * 7.8 - timeSec * 0.95) * 0.22 +
-          Math.cos(nx * 14.5 + timeSec * 0.65) * 0.11;
-
-        const ptrDistX = Math.abs(nx - pointerX);
-        const ptrPull = Math.exp(-ptrDistX * ptrDistX * 32) * pointerActive;
-        const localWaveY = wavePrimary + (pointerY - 0.5) * 0.36 * ptrPull;
-
-        const ridge = Math.exp(-Math.pow(ny - localWaveY, 2) * 16) * edgeFade;
-        const secondaryWaveY = 0.5 - Math.sin(nx * 5.4 + timeSec * 0.72) * 0.26;
-        const secondary = Math.exp(-Math.pow(ny - secondaryWaveY, 2) * 18) * 0.5 * edgeFade;
-
-        const intensity = clamp01(ridge + secondary + ptrPull * 0.34 * edgeFade);
-        if (intensity < 0.08) continue;
-
-        const ch =
-          intensity > 0.5
-            ? ASCII_RAMP[Math.min(ASCII_RAMP.length - 1, Math.floor(intensity * ASCII_RAMP.length))] ??
-              "-"
-            : BRAILLE_RAMP[Math.min(BRAILLE_RAMP.length - 1, 2 + Math.floor(intensity * 7))] ??
-              "\u2803";
-
-        const base = mixRgb(theme.muted, theme.ink, intensity);
-        const withSecondary = mixRgb(base, theme.accentSecondary, clamp01(secondary * 0.95));
-        const crestAccent = clamp01(ptrPull * 0.95 + Math.max(0, ridge - 0.66) * 1.5);
-        const color = mixRgb(withSecondary, theme.accent, crestAccent);
-
-        ctx.fillStyle = rgbToCss(color, 0.28 + intensity * 0.72);
-        ctx.fillText(ch, (col + 0.5) * actualCellW, (row + 0.52) * actualCellH);
-      }
-    }
-  });
-
-  return {
-    destroy: () => controller.destroy(),
-  };
-}
-
-/* -------------------------------------------------------------------------- */
-/* 6. STACK FABRIC: 3-Hub Monochrome ASCII Topology for Technical Stack       */
-/* -------------------------------------------------------------------------- */
-
-const STACK_COMPACT_LABELS = ["Languages", "ML / sys", "Backend"] as const;
-
-const HUB_SPRITES_WIDE: readonly (readonly string[])[] = [
-  [" .---. ", "/ { } \\", "|[fn:]|", "\\ <*> /", " '---' "],
-  [" ./^\\. ", "/  +  \\", "|<o*o>|", "\\  +  /", " '\\v/' "],
-  [" +===+ ", "/|:::|\\", "|[===]|", "\\|:::|/", " +===+ "],
-];
-
-const HUB_SPRITES_COMPACT: readonly (readonly string[])[] = [
-  [".---.", "{   }", "[fn:]", "< * >", "'---'"],
-  ["./^\\.", "/ + \\", "<o*o>", "\\ + /", "'\\v/'"],
-  ["+===+", "|:::|", "[===]", "|:::|", "+===+"],
-];
-
-export function mountStackFabric(
-  canvas: HTMLCanvasElement,
-  columns: readonly StackFabricColumn[],
-): StackFabricHandle {
-  let externalCol = -1;
-  let externalItem: string | null = null;
-  let pointerCol = -1;
-  const hubIntensity = [0.65, 0.35, 0.35];
-
-  const resolveColumnIdx = (normX: number, hubFracs: readonly [number, number, number]): number => {
-    let bestIdx = 0;
-    let bestDist = Infinity;
-    for (let i = 0; i < 3; i++) {
-      const d = Math.abs(normX - hubFracs[i]!);
-      if (d < bestDist) {
-        bestDist = d;
-        bestIdx = i;
-      }
-    }
-    return bestIdx;
-  };
-
-  const controller = mountCanvasLoop(
-    canvas,
-    (ctx, state) => {
-      const { widthCss, heightCss, timeSec, theme, reducedMotion, pointerX, pointerY, pointerActive } =
-        state;
-      const isNarrow = widthCss < 520;
-      const hubFracs: readonly [number, number, number] = isNarrow
-        ? [0.18, 0.5, 0.82]
-        : [1 / 6, 3 / 6, 5 / 6];
-
-      const padX = isNarrow ? 10 : 18;
-      const usableW = Math.max(120, widthCss - padX * 2);
-      const cellW = isNarrow ? 8.2 : 10;
-      const cols = Math.max(32, Math.floor(usableW / cellW));
-      const actualCellW = usableW / cols;
-
-      const captionY = 18;
-      const gridTop = 32;
-      const gridH = Math.max(64, heightCss - gridTop - 10);
-      const rows = 5;
-      const cellH = gridH / rows;
-
-      ctx.font = `500 ${HUD_FONT_PX}px ${CHARSET_FONT_STACK}`;
-      ctx.textBaseline = "middle";
-
-      // Top pillar labels aligned to the three stack columns
-      ctx.textAlign = "center";
-      for (let i = 0; i < 3; i++) {
-        const cx = hubFracs[i]! * widthCss;
-        const focus = hubIntensity[i] ?? 0.35;
-        const fullLabel = columns[i]?.label || STACK_COMPACT_LABELS[i]!;
-        let labelText = isNarrow ? (STACK_COMPACT_LABELS[i] ?? fullLabel) : fullLabel;
-        if (!isNarrow && widthCss >= 640 && externalCol === i && externalItem) {
-          labelText = `${fullLabel} · ${externalItem}`;
-        }
-
-        const labelColor = mixRgb(theme.muted, theme.ink, clamp01(0.25 + focus * 0.75));
-        ctx.fillStyle = rgbToCss(labelColor, 0.76 + focus * 0.24);
-        ctx.fillText(labelText, cx, captionY);
-      }
-
-      const hubCols = [
-        clamp(Math.round(((hubFracs[0]! * widthCss - padX) / usableW) * (cols - 1)), 4, cols - 5),
-        clamp(Math.round(((hubFracs[1]! * widthCss - padX) / usableW) * (cols - 1)), 4, cols - 5),
-        clamp(Math.round(((hubFracs[2]! * widthCss - padX) / usableW) * (cols - 1)), 4, cols - 5),
-      ] as const;
-
-      const sprites = isNarrow ? HUB_SPRITES_COMPACT : HUB_SPRITES_WIDE;
-      const spriteHalfW = Math.floor((sprites[0]?.[0]?.length ?? 5) / 2);
-
-      // Compute travelling packet coordinates along upper, center, and lower buses
-      const spanMin = hubCols[0] + spriteHalfW + 1;
-      const spanMax = hubCols[2] - spriteHalfW - 1;
-      const spanLen = Math.max(4, spanMax - spanMin);
-
-      const packets = [
-        { row: 1, pos: spanMin + (((timeSec * 0.28) % 1) * spanLen), dir: 1 },
-        { row: 1, pos: spanMin + ((((timeSec * 0.28 + 0.5) % 1)) * spanLen), dir: 1 },
-        { row: 2, pos: spanMin + (((timeSec * 0.41 + 0.18) % 1) * spanLen), dir: 1 },
-        { row: 2, pos: spanMax - (((timeSec * 0.35 + 0.62) % 1) * spanLen), dir: -1 },
-        { row: 3, pos: spanMax - (((timeSec * 0.26) % 1) * spanLen), dir: -1 },
-        { row: 3, pos: spanMax - ((((timeSec * 0.26 + 0.5) % 1)) * spanLen), dir: -1 },
-      ] as const;
-
-      const ptrColF = clamp01((pointerX * widthCss - padX) / usableW) * (cols - 1);
-      const ptrRowF = clamp01((pointerY * heightCss - gridTop) / gridH) * (rows - 1);
-
-      for (let r = 0; r < rows; r++) {
-        const yPx = gridTop + (r + 0.5) * cellH;
-        for (let c = 0; c < cols; c++) {
-          const xPx = padX + (c + 0.5) * actualCellW;
-          const u = c / Math.max(1, cols - 1);
-
-          // Check if cell falls inside one of the 3 hub ASCII cores
-          let hubMatchIdx = -1;
-          let hubChar = " ";
-          for (let h = 0; h < 3; h++) {
-            const dc = c - hubCols[h]! + spriteHalfW;
-            const spriteRow = sprites[h]?.[r];
-            if (spriteRow && dc >= 0 && dc < spriteRow.length) {
-              const candidate = spriteRow[dc] ?? " ";
-              if (candidate !== " ") {
-                hubMatchIdx = h;
-                hubChar = candidate;
-                break;
-              }
-            }
-          }
-
-          const ptrDist = Math.hypot((c - ptrColF) * 0.55, r - ptrRowF);
-          const ptrGlow = pointerActive > 0.05 ? Math.exp(-ptrDist * ptrDist * 0.42) * pointerActive : 0;
-
-          if (hubMatchIdx >= 0) {
-            const focus = hubIntensity[hubMatchIdx] ?? 0.35;
-            const pulse = reducedMotion
-              ? 0.6
-              : 0.5 + 0.5 * Math.sin(timeSec * 2.4 - hubMatchIdx * 1.4);
-
-            // Animate core symbol subtly on active center cell
-            let drawn = hubChar;
-            if (r === 2 && (hubChar === "*" || hubChar === "n" || hubChar === "=")) {
-              if (focus > 0.65 && !reducedMotion && Math.sin(timeSec * 5.2 + hubMatchIdx) > 0.35) {
-                drawn = "#";
-              }
-            }
-
-            const baseColor = mixRgb(theme.muted, theme.ink, clamp01(0.45 + focus * 0.55));
-            const color = mixRgb(
-              baseColor,
-              theme.accent,
-              clamp01(Math.max(0, focus - 0.55) * 1.5 + ptrGlow * 0.6),
-            );
-            ctx.fillStyle = rgbToCss(color, 0.62 + focus * 0.32 + pulse * 0.06);
-            ctx.fillText(drawn, xPx, yPx);
-            continue;
-          }
-
-          // Keep interior spaces inside all three hub sprites clear of bus tracks and background dots
-          if (
-            Math.abs(c - hubCols[0]) <= spriteHalfW ||
-            Math.abs(c - hubCols[1]) <= spriteHalfW ||
-            Math.abs(c - hubCols[2]) <= spriteHalfW
-          ) {
-            continue;
-          }
-
-          // Check horizontal bus lanes (rows 1, 2, 3) between hub 0 and hub 2
-          const onBusSpan = c > hubCols[0] + spriteHalfW && c < hubCols[2] - spriteHalfW;
-          if (onBusSpan && (r === 1 || r === 2 || r === 3)) {
-            let bestPacketDist = 99;
-            let bestPacketDir = 1;
-            for (let p = 0; p < packets.length; p++) {
-              const pkt = packets[p]!;
-              if (pkt.row !== r) continue;
-              const d = Math.abs(c - pkt.pos);
-              if (d < bestPacketDist) {
-                bestPacketDist = d;
-                bestPacketDir = pkt.dir;
-              }
-            }
-
-            // Highlight segments touching the currently active column
-            const nearCol = resolveColumnIdx(u, hubFracs);
-            const segFocus = hubIntensity[nearCol] ?? 0.35;
-
-            if (bestPacketDist < 1.35) {
-              const head = bestPacketDist < 0.55;
-              const ch = head ? (bestPacketDir > 0 ? ">" : "<") : r === 2 ? "=" : "+";
-              const color = mixRgb(theme.accentSecondary, theme.accent, head ? 0.92 : 0.45);
-              ctx.fillStyle = rgbToCss(color, head ? 0.95 : 0.68);
-              ctx.fillText(ch, xPx, yPx);
-              continue;
-            }
-
-            if (r === 2) {
-              const isTick = c % 4 === 0;
-              const ch = isTick ? "+" : "-";
-              const color = mixRgb(theme.muted, theme.ink, clamp01(0.2 + segFocus * 0.45 + ptrGlow * 0.5));
-              ctx.fillStyle = rgbToCss(color, 0.38 + segFocus * 0.25 + ptrGlow * 0.28);
-              ctx.fillText(ch, xPx, yPx);
-              continue;
-            }
-
-            // Sparse dashed outer lanes (rows 1 and 3)
-            if ((c + r) % 3 === 0 || ptrGlow > 0.25) {
-              const ch = ptrGlow > 0.35 ? "*" : "-";
-              const color = mixRgb(theme.muted, theme.accentSecondary, clamp01(segFocus * 0.5 + ptrGlow * 0.7));
-              ctx.fillStyle = rgbToCss(color, 0.2 + segFocus * 0.18 + ptrGlow * 0.32);
-              ctx.fillText(ch, xPx, yPx);
-              continue;
-            }
-          }
-
-          // Ambient pulsing micro-dot lattice elsewhere
-          const wave = reducedMotion
-            ? 0.42
-            : 0.5 + 0.5 * Math.sin(u * 10.5 - timeSec * 1.15 + r * 0.85);
-          const intensity = clamp01(wave * 0.34 + ptrGlow * 0.75);
-          if (intensity > 0.18 && (c % 2 === 0 || ptrGlow > 0.22)) {
-            const ch = intensity > 0.58 ? "*" : intensity > 0.34 ? ":" : "\u00b7";
-            const color = mixRgb(theme.muted, theme.accent, clamp01(ptrGlow * 0.85));
-            ctx.fillStyle = rgbToCss(color, 0.14 + intensity * 0.46);
-            ctx.fillText(ch, xPx, yPx);
-          }
-        }
-      }
-    },
-    {
-      onUpdate: (dt, state) => {
-        const isNarrow = state.widthCss < 520;
-        const hubFracs: readonly [number, number, number] = isNarrow
-          ? [0.18, 0.5, 0.82]
-          : [1 / 6, 3 / 6, 5 / 6];
-
-        if (state.pointerActive > 0.12) {
-          pointerCol = resolveColumnIdx(state.pointerX, hubFracs);
-        } else {
-          pointerCol = -1;
-        }
-
-        const ambientCol = state.reducedMotion ? -1 : Math.floor(state.timeSec / 3.2) % 3;
-        const activeTarget = externalCol >= 0 ? externalCol : pointerCol >= 0 ? pointerCol : ambientCol;
-        const rate = 1 - Math.exp(-dt * 8);
-
-        for (let i = 0; i < 3; i++) {
-          const targetVal = activeTarget === -1 ? 0.68 : i === activeTarget ? 1.0 : 0.28;
-          hubIntensity[i] = (hubIntensity[i] ?? 0.35) + (targetVal - (hubIntensity[i] ?? 0.35)) * rate;
-        }
-      },
-      onPointerLeave: () => {
-        pointerCol = -1;
-      },
-    },
-  );
-
-  return {
-    setActiveColumn: (colIdx: number, itemLabel?: string | null) => {
-      externalCol = colIdx >= 0 && colIdx <= 2 ? colIdx : -1;
-      externalItem = itemLabel ?? null;
-      if (isReducedMotionPreferred()) {
-        for (let i = 0; i < 3; i++) {
-          hubIntensity[i] = externalCol === -1 ? 0.68 : i === externalCol ? 1.0 : 0.28;
-        }
-      }
-      controller.requestRedraw();
-    },
-    destroy: () => controller.destroy(),
   };
 }

@@ -151,20 +151,22 @@ p {
   }
 }
 
-/* ── Reveal-on-scroll (enhances an already-visible default) ──────── */
-.reveal {
+/* ── Nanobot scroll assembly (enhances an already-visible default) ─ */
+[data-assemble] {
   opacity: 1;
   transform: none;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .js .reveal {
-    opacity: 0;
-    transform: translateY(16px);
-    transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-      transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  html.js [data-assemble] {
+    opacity: clamp(0, calc(var(--asm, 1) * 1.12), 1);
+    transform: translate3d(0, calc((1 - var(--asm, 1)) * 22px), 0);
+    clip-path: inset(0 0 calc((1 - var(--asm, 1)) * 18%) 0);
+    will-change: opacity, transform, clip-path;
   }
-  .js .reveal.is-visible {
+  html.js [data-assemble][data-asm-state="solid"] {
     opacity: 1;
     transform: none;
+    clip-path: none;
+    will-change: auto;
   }
 }
