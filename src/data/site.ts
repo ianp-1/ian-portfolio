@@ -18,7 +18,7 @@ export const LINKS = {
 export const SKILLS: { group: string; items: string[] }[] = [
   {
     group: "Languages",
-    items: ["Python", "C / C++", "TypeScript", "Java", "SwiftUI"],
+    items: ["Python", "C / C++", "Go", "TypeScript", "Java", "SwiftUI"],
   },
   {
     group: "ML and systems",
@@ -26,6 +26,6 @@ export const SKILLS: { group: string; items: string[] }[] = [
   },
   {
     group: "Backend and infra",
-    items: ["Node.js", "FastAPI", "Flask", "PostgreSQL", "Docker", "GCP"],
+    items: ["AWS", "Docker", "Kubernetes", "PostgreSQL", "Node.js", "FastAPI", "Flask", "GCP"],
   },
 ];

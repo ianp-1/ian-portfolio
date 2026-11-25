@@ -1355,18 +1355,18 @@ function evalRoleSignal(idx: number, u: number, t: number): { y1: number; y2: nu
       return { y1, y2 };
     }
     case 2: {
-      // FedEx: batched routing optimization packet wavelets
-      const env = 0.5 + 0.5 * Math.sin(u * Math.PI * 4 + t * 1.6);
-      const y1 = Math.sin(u * Math.PI * 18 - t * 4.2) * (0.22 + 0.74 * env * env);
-      const y2 = Math.sin(u * Math.PI * 4 + t * 1.6) * 0.58;
-      return { y1, y2 };
-    }
-    case 3: {
       // Zhan Lab: 120 FPS microfluidic droplet pulse train
       const phase = (((u * 5 - t * 0.9) % 1) + 1) % 1;
       const pulse = Math.exp(-phase * 5.2) * Math.sin(phase * Math.PI * 6);
       const y1 = clamp(pulse * 1.35, -1, 1);
       const y2 = Math.sin(u * Math.PI * 10 - t * 5.2) * 0.36;
+      return { y1, y2 };
+    }
+    case 3: {
+      // FedEx: batched routing optimization packet wavelets
+      const env = 0.5 + 0.5 * Math.sin(u * Math.PI * 4 + t * 1.6);
+      const y1 = Math.sin(u * Math.PI * 18 - t * 4.2) * (0.22 + 0.74 * env * env);
+      const y2 = Math.sin(u * Math.PI * 4 + t * 1.6) * 0.58;
       return { y1, y2 };
     }
     case 4: {
