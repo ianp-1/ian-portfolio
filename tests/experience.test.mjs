@@ -43,4 +43,14 @@ test("renders the latest resume experience, ordering, and stack", async () => {
   // Stale text removed
   assert.doesNotMatch(html, /Incoming Software Engineer Intern/);
   assert.doesNotMatch(html, /Aug 2025 — Present/);
+
+  // Interactive experience timeline scrubber affordances
+  assert.match(html, /id="exp-oscilloscope"[^>]*role="slider"/);
+  assert.match(html, /id="exp-oscilloscope"[^>]*cursor-ew-resize/);
+
+  // Monochrome Obsidian Ink favicon replaces legacy green
+  const favicon = await readFile(new URL("../public/favicon.svg", import.meta.url), "utf8");
+  assert.match(favicon, /#080808/);
+  assert.match(favicon, /#F5F5F5/i);
+  assert.doesNotMatch(favicon, /#93c15f/i);
 });

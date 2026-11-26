@@ -16,6 +16,9 @@ export interface OscilloscopeHandle {
   setRoleIndex: (idx: number) => void;
   setScrollProgress: (norm: number) => void;
   setHoverCallback: (cb: (idx: number) => void) => void;
+  setScrubCallback: (
+    cb: (normX: number, idx: number, phase: "start" | "move" | "end") => void,
+  ) => void;
   destroy: () => void;
 }
 
@@ -54,6 +57,7 @@ interface LoopHandlers {
     dragDistPx: number,
     state: LoopState,
   ) => void;
+  onPointerCancel?: (state: LoopState) => void;
   onPointerLeave?: (state: LoopState) => void;
 }
 
@@ -223,7 +227,7 @@ function mountCanvasLoop(
     if (reducedMotion) renderNow();
   };
 
-  const onPointerMove = (e: PointerEvent) => {
+  const handlePointerMove = (e: PointerEvent) => {
     if (destroyed) return;
     if (isDragging && activePointerId !== null && e.pointerId !== activePointerId) return;
     const { normX, normY } = toCanvasCoords(e);
@@ -246,13 +250,25 @@ function mountCanvasLoop(
     if (reducedMotion) renderNow();
   };
 
+  const onCanvasPointerMove = (e: PointerEvent) => {
+    if (isDragging) return;
+    handlePointerMove(e);
+  };
+
+  const onWindowPointerMove = (e: PointerEvent) => {
+    if (!isDragging) return;
+    handlePointerMove(e);
+  };
+
   const finishPointer = (e: PointerEvent, cancelled: boolean) => {
     if (destroyed) return;
     if (!isDragging || (activePointerId !== null && e.pointerId !== activePointerId)) return;
     const { pxX, pxY, normX, normY } = toCanvasCoords(e);
     isDragging = false;
     activePointerId = null;
-    if (!cancelled) {
+    if (cancelled) {
+      handlers?.onPointerCancel?.(currentState());
+    } else {
       handlers?.onPointerUp?.(normX, normY, pxX, pxY, totalDragDist, currentState());
     }
     if (reducedMotion) renderNow();
@@ -270,8 +286,9 @@ function mountCanvasLoop(
   };
 
   canvas.addEventListener("pointerdown", onPointerDown, { passive: true });
-  canvas.addEventListener("pointermove", onPointerMove, { passive: true });
+  canvas.addEventListener("pointermove", onCanvasPointerMove, { passive: true });
   canvas.addEventListener("pointerleave", onPointerLeave, { passive: true });
+  window.addEventListener("pointermove", onWindowPointerMove, { passive: true });
   window.addEventListener("pointerup", onPointerUp, { passive: true });
   window.addEventListener("pointercancel", onPointerCancel, { passive: true });
 
@@ -361,8 +378,9 @@ function mountCanvasLoop(
       destroyed = true;
       stopLoop();
       canvas.removeEventListener("pointerdown", onPointerDown);
-      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointermove", onCanvasPointerMove);
       canvas.removeEventListener("pointerleave", onPointerLeave);
+      window.removeEventListener("pointermove", onWindowPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerCancel);
       window.removeEventListener("resize", syncSize);
@@ -1394,6 +1412,7 @@ export function mountExperienceOscilloscope(
   roleCount: number,
   labels?: string[],
   periods?: string[],
+  roles?: string[],
 ): OscilloscopeHandle {
   const safeCount = Math.max(1, Math.floor(roleCount || 1));
   let activeIdx = 0;
@@ -1403,7 +1422,10 @@ export function mountExperienceOscilloscope(
   let cursorTargetNorm = 0.5 / safeCount;
   let scrollProgressNorm: number | null = null;
   let isPointerHovering = false;
+  let isScrubbing = false;
   let hoverCallback: ((idx: number) => void) | null = null;
+  let scrubCallback: ((normX: number, idx: number, phase: "start" | "move" | "end") => void) | null =
+    null;
 
   const setActiveSlot = (nextIdx: number, notifyHover: boolean) => {
     const clamped = clamp(nextIdx, 0, safeCount - 1);
@@ -1523,6 +1545,11 @@ export function mountExperienceOscilloscope(
         ctx.stroke();
       }
 
+      // Highlight the active timeline slot along the rule
+      const slotStart = padX + activeIdx * slotW;
+      ctx.fillStyle = rgbToCss(theme.accent, isScrubbing ? 0.95 : 0.78);
+      ctx.fillRect(slotStart, ruleY - 1, slotW, 2);
+
       // Draw dual-trace Braille waveforms
       const fontPx = Math.max(HUD_FONT_PX, Math.round(waveCellH * 1.04));
       ctx.font = `500 ${fontPx}px ${CHARSET_FONT_STACK}`;
@@ -1567,20 +1594,26 @@ export function mountExperienceOscilloscope(
         },
       );
 
-      // Minimal razor-thin vertical scan-head hairline marker
+      // Minimal razor-thin vertical scan-head hairline marker & handle
       const cursorX = padX + clamp01(cursorNorm) * usableW;
       const alignedCursorX = Math.round(cursorX) + 0.5;
-      ctx.strokeStyle = rgbToCss(theme.accent, 0.78);
+      const isEngaged = isPointerHovering || isScrubbing;
+      ctx.strokeStyle = rgbToCss(theme.accent, isEngaged ? 0.95 : 0.78);
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(alignedCursorX, waveTop - 1);
       ctx.lineTo(alignedCursorX, ruleY + 3);
       ctx.stroke();
-      ctx.fillStyle = rgbToCss(theme.accent, 0.92);
-      ctx.fillRect(Math.round(cursorX) - 1, ruleY - 1, 3, 3);
+      ctx.fillStyle = rgbToCss(theme.accent, isEngaged ? 1 : 0.92);
+      if (isEngaged) {
+        ctx.fillRect(Math.round(cursorX) - 2, ruleY - 2, 5, 5);
+      } else {
+        ctx.fillRect(Math.round(cursorX) - 1, ruleY - 1, 3, 3);
+      }
 
-      // Top strip: active company on left, active period on right (>= 440px)
+      // Top strip: active company (+ role on wide screens) on left, active period on right (>= 440px)
       const rawRoleName = labels?.[activeIdx] ?? "";
+      const rawRoleTitle = widthCss >= 600 ? (roles?.[activeIdx] ?? "").trim() : "";
       const showPeriod = widthCss >= 440;
       const rawPeriod = showPeriod ? (periods?.[activeIdx] ?? "").trim() : "";
 
@@ -1591,21 +1624,51 @@ export function mountExperienceOscilloscope(
       if (rawPeriod.length > 0) {
         periodReserveW = ctx.measureText(rawPeriod).width + 16;
         ctx.textAlign = "right";
-        ctx.fillStyle = rgbToCss(theme.muted, 0.88);
+        ctx.fillStyle = rgbToCss(theme.muted, 0.9);
         ctx.fillText(rawPeriod, widthCss - padX, headerY);
       }
 
       const maxLabelW = Math.max(64, usableW - periodReserveW);
-      let roleName = rawRoleName;
-      if (roleName.length > 0 && ctx.measureText(roleName).width > maxLabelW) {
-        while (roleName.length > 3 && ctx.measureText(`${roleName}...`).width > maxLabelW) {
-          roleName = roleName.slice(0, -1).trimEnd();
+      let companyText = rawRoleName;
+      let roleSuffix = "";
+
+      if (companyText.length > 0 && rawRoleTitle.length > 0) {
+        const companyW = ctx.measureText(companyText).width;
+        const fullSuffix = ` \u00b7 ${rawRoleTitle}`;
+        if (companyW + ctx.measureText(fullSuffix).width <= maxLabelW) {
+          roleSuffix = fullSuffix;
+        } else {
+          let trimmed = rawRoleTitle;
+          while (
+            trimmed.length > 5 &&
+            companyW + ctx.measureText(` \u00b7 ${trimmed}...`).width > maxLabelW
+          ) {
+            trimmed = trimmed.slice(0, -1).trimEnd();
+          }
+          if (
+            trimmed.length >= 6 &&
+            companyW + ctx.measureText(` \u00b7 ${trimmed}...`).width <= maxLabelW
+          ) {
+            roleSuffix = ` \u00b7 ${trimmed}...`;
+          }
         }
-        roleName = `${roleName}...`;
       }
+
+      if (roleSuffix.length === 0 && companyText.length > 0 && ctx.measureText(companyText).width > maxLabelW) {
+        while (companyText.length > 3 && ctx.measureText(`${companyText}...`).width > maxLabelW) {
+          companyText = companyText.slice(0, -1).trimEnd();
+        }
+        companyText = `${companyText}...`;
+      }
+
       ctx.textAlign = "left";
-      ctx.fillStyle = rgbToCss(theme.ink, 0.92);
-      ctx.fillText(roleName, padX, headerY);
+      ctx.fillStyle = rgbToCss(theme.ink, 0.94);
+      ctx.fillText(companyText, padX, headerY);
+      if (roleSuffix.length > 0) {
+        const suffixX = padX + ctx.measureText(companyText).width;
+        ctx.fillStyle = rgbToCss(theme.muted, 0.84);
+        ctx.fillText(roleSuffix, suffixX, headerY);
+      }
 
       // Bottom rule crisp year ticks (2026 -> 2025 -> 2024 aligned with newest-first slots)
       const yearTicks: ReadonlyArray<{ year: string; norm: number; align: CanvasTextAlign }> = [
@@ -1635,26 +1698,53 @@ export function mountExperienceOscilloscope(
         }
         cursorNorm += (cursorTargetNorm - cursorNorm) * (1 - Math.exp(-dt * 14));
       },
-      onPointerDown: (normX, _ny, _px, _py, state) => {
+      onPointerDown: (normX, _ny, _px, _py) => {
+        const clampedNorm = clamp01(normX);
         isPointerHovering = true;
-        cursorTargetNorm = normX;
-        if (state.reducedMotion) cursorNorm = normX;
-        const idx = Math.floor(clamp01(normX) * safeCount);
+        isScrubbing = true;
+        cursorTargetNorm = clampedNorm;
+        cursorNorm = clampedNorm;
+        scrollProgressNorm = clampedNorm;
+        const idx = clamp(Math.floor(clampedNorm * safeCount), 0, safeCount - 1);
         setActiveSlot(idx, true);
+        scrubCallback?.(clampedNorm, idx, "start");
       },
       onPointerMove: (normX, _ny, _dx, _dy, _dt, state) => {
+        const clampedNorm = clamp01(normX);
+        const idx = clamp(Math.floor(clampedNorm * safeCount), 0, safeCount - 1);
+        if (state.isDragging && isScrubbing) {
+          isPointerHovering = true;
+          cursorTargetNorm = clampedNorm;
+          cursorNorm = clampedNorm;
+          scrollProgressNorm = clampedNorm;
+          setActiveSlot(idx, true);
+          scrubCallback?.(clampedNorm, idx, "move");
+          return;
+        }
         isPointerHovering = true;
-        cursorTargetNorm = normX;
-        if (state.reducedMotion) cursorNorm = normX;
-        const idx = Math.floor(clamp01(normX) * safeCount);
+        cursorTargetNorm = clampedNorm;
+        if (state.reducedMotion) cursorNorm = clampedNorm;
         setActiveSlot(idx, true);
       },
-      onPointerUp: (normX, normY, _px, _py, _dragDistPx, state) => {
-        if (normX <= 0 || normX >= 1 || normY <= 0 || normY >= 1) {
-          restoreScanCursor(state.reducedMotion);
+      onPointerUp: (normX, _ny, pxX, pxY, _dragDistPx, state) => {
+        const clampedNorm = clamp01(normX);
+        const idx = clamp(Math.floor(clampedNorm * safeCount), 0, safeCount - 1);
+        const wasScrubbing = isScrubbing;
+        isScrubbing = false;
+        if (wasScrubbing) {
+          scrollProgressNorm = clampedNorm;
+          scrubCallback?.(clampedNorm, idx, "end");
+        }
+        if (pxX < 0 || pxX > state.widthCss || pxY < 0 || pxY > state.heightCss) {
+          isPointerHovering = false;
         }
       },
+      onPointerCancel: (state) => {
+        isScrubbing = false;
+        restoreScanCursor(state.reducedMotion);
+      },
       onPointerLeave: (state) => {
+        if (isScrubbing) return;
         restoreScanCursor(state.reducedMotion);
       },
     },
@@ -1663,7 +1753,7 @@ export function mountExperienceOscilloscope(
   return {
     setRoleIndex: (idx: number) => {
       const clamped = clamp(Math.round(idx), 0, safeCount - 1);
-      if (!isPointerHovering) {
+      if (!isPointerHovering && !isScrubbing) {
         cursorTargetNorm = (clamped + 0.5) / safeCount;
         if (isReducedMotionPreferred()) {
           cursorNorm = cursorTargetNorm;
@@ -1675,7 +1765,7 @@ export function mountExperienceOscilloscope(
     setScrollProgress: (norm: number) => {
       const clampedNorm = clamp01(norm);
       scrollProgressNorm = clampedNorm;
-      if (!isPointerHovering) {
+      if (!isPointerHovering && !isScrubbing) {
         cursorTargetNorm = clampedNorm;
         if (isReducedMotionPreferred()) {
           cursorNorm = cursorTargetNorm;
@@ -1685,6 +1775,11 @@ export function mountExperienceOscilloscope(
     },
     setHoverCallback: (cb: (idx: number) => void) => {
       hoverCallback = cb;
+    },
+    setScrubCallback: (
+      cb: (normX: number, idx: number, phase: "start" | "move" | "end") => void,
+    ) => {
+      scrubCallback = cb;
     },
     destroy: () => {
       controller.destroy();

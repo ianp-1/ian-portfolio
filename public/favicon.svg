@@ -1,5 +1,35 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#131313"/>
-  <path d="M11 9.5v13" stroke="#eceee9" stroke-width="2.4" stroke-linecap="round"/>
-  <path d="M17 22.5v-13h3.2a3.9 3.9 0 0 1 0 7.8H17" fill="none" stroke="#93c15f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="0.5" y="0.5" width="31" height="31" rx="7" fill="#080808" stroke="#2A2A2A" stroke-width="1"/>
+  <!-- Unoccupied matrix dots -->
+  <g fill="#1F1F1F">
+    <rect x="13.9" y="6.4" width="1.2" height="1.2" rx="0.3"/><rect x="25.9" y="6.4" width="1.2" height="1.2" rx="0.3"/>
+    <rect x="4.9" y="9.4" width="1.2" height="1.2" rx="0.3"/><rect x="10.9" y="9.4" width="1.2" height="1.2" rx="0.3"/><rect x="13.9" y="9.4" width="1.2" height="1.2" rx="0.3"/><rect x="19.9" y="9.4" width="1.2" height="1.2" rx="0.3"/><rect x="22.9" y="9.4" width="1.2" height="1.2" rx="0.3"/>
+    <rect x="4.9" y="12.4" width="1.2" height="1.2" rx="0.3"/><rect x="10.9" y="12.4" width="1.2" height="1.2" rx="0.3"/><rect x="13.9" y="12.4" width="1.2" height="1.2" rx="0.3"/><rect x="19.9" y="12.4" width="1.2" height="1.2" rx="0.3"/><rect x="22.9" y="12.4" width="1.2" height="1.2" rx="0.3"/>
+    <rect x="4.9" y="15.4" width="1.2" height="1.2" rx="0.3"/><rect x="10.9" y="15.4" width="1.2" height="1.2" rx="0.3"/><rect x="13.9" y="15.4" width="1.2" height="1.2" rx="0.3"/><rect x="25.9" y="15.4" width="1.2" height="1.2" rx="0.3"/>
+    <rect x="4.9" y="18.4" width="1.2" height="1.2" rx="0.3"/><rect x="10.9" y="18.4" width="1.2" height="1.2" rx="0.3"/><rect x="13.9" y="18.4" width="1.2" height="1.2" rx="0.3"/><rect x="19.9" y="18.4" width="1.2" height="1.2" rx="0.3"/><rect x="22.9" y="18.4" width="1.2" height="1.2" rx="0.3"/><rect x="25.9" y="18.4" width="1.2" height="1.2" rx="0.3"/>
+    <rect x="4.9" y="21.4" width="1.2" height="1.2" rx="0.3"/><rect x="10.9" y="21.4" width="1.2" height="1.2" rx="0.3"/><rect x="13.9" y="21.4" width="1.2" height="1.2" rx="0.3"/><rect x="19.9" y="21.4" width="1.2" height="1.2" rx="0.3"/><rect x="22.9" y="21.4" width="1.2" height="1.2" rx="0.3"/><rect x="25.9" y="21.4" width="1.2" height="1.2" rx="0.3"/>
+    <rect x="13.9" y="24.4" width="1.2" height="1.2" rx="0.3"/><rect x="19.9" y="24.4" width="1.2" height="1.2" rx="0.3"/><rect x="22.9" y="24.4" width="1.2" height="1.2" rx="0.3"/>
+  </g>
+  <!-- Monochrome dot-matrix "IP" monogram -->
+  <g fill="#F5F5F5">
+    <!-- Row 0 -->
+    <rect x="4.4" y="5.9" width="2.2" height="2.2" rx="0.45"/><rect x="7.4" y="5.9" width="2.2" height="2.2" rx="0.45"/><rect x="10.4" y="5.9" width="2.2" height="2.2" rx="0.45"/>
+    <rect x="16.4" y="5.9" width="2.2" height="2.2" rx="0.45"/><rect x="19.4" y="5.9" width="2.2" height="2.2" rx="0.45"/><rect x="22.4" y="5.9" width="2.2" height="2.2" rx="0.45"/>
+    <!-- Row 1 -->
+    <rect x="7.4" y="8.9" width="2.2" height="2.2" rx="0.45"/><rect x="16.4" y="8.9" width="2.2" height="2.2" rx="0.45"/><rect x="25.4" y="8.9" width="2.2" height="2.2" rx="0.45"/>
+    <!-- Row 2 -->
+    <rect x="7.4" y="11.9" width="2.2" height="2.2" rx="0.45"/><rect x="16.4" y="11.9" width="2.2" height="2.2" rx="0.45"/><rect x="25.4" y="11.9" width="2.2" height="2.2" rx="0.45"/>
+    <!-- Row 3 -->
+    <rect x="7.4" y="14.9" width="2.2" height="2.2" rx="0.45"/>
+    <rect x="16.4" y="14.9" width="2.2" height="2.2" rx="0.45"/><rect x="19.4" y="14.9" width="2.2" height="2.2" rx="0.45"/><rect x="22.4" y="14.9" width="2.2" height="2.2" rx="0.45"/>
+    <!-- Row 4 -->
+    <rect x="7.4" y="17.9" width="2.2" height="2.2" rx="0.45"/><rect x="16.4" y="17.9" width="2.2" height="2.2" rx="0.45"/>
+    <!-- Row 5 -->
+    <rect x="7.4" y="20.9" width="2.2" height="2.2" rx="0.45"/><rect x="16.4" y="20.9" width="2.2" height="2.2" rx="0.45"/>
+    <!-- Row 6 -->
+    <rect x="4.4" y="23.9" width="2.2" height="2.2" rx="0.45"/><rect x="7.4" y="23.9" width="2.2" height="2.2" rx="0.45"/><rect x="10.4" y="23.9" width="2.2" height="2.2" rx="0.45"/>
+    <rect x="16.4" y="23.9" width="2.2" height="2.2" rx="0.45"/>
+  </g>
+  <!-- Terminal cursor anchor -->
+  <rect x="25.4" y="23.9" width="2.2" height="2.2" rx="0.45" fill="#8A8A8A"/>
 </svg>
