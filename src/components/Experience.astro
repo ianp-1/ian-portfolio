@@ -101,14 +101,101 @@ const initialValueText = firstEntry
 
   let activeIdx = 0;
   let isScrubbing = false;
+  let isHoveringBar = false;
   let scrubStartNorm = 0;
   let didDragScrub = false;
   let programmaticScrollUntil = 0;
+  let hoverTargetY: number | null = null;
+  let hoverScrollRafId: number | null = null;
+  let lastHoverFrameMs = 0;
+  let lastWheelMs = -Infinity;
+  let unstuckBand: { top: number; bottom: number } | null = null;
+  let hoverEntryTimer: number | null = null;
 
   const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   const clampValue = (v: number, min: number, max: number) =>
     Math.max(min, Math.min(max, v));
+
+  function clearHoverEntryTimer() {
+    if (hoverEntryTimer !== null) {
+      window.clearTimeout(hoverEntryTimer);
+      hoverEntryTimer = null;
+    }
+  }
+
+  function clearUnstuckBand() {
+    if (unstuckBand !== null) {
+      unstuckBand = null;
+      window.removeEventListener("pointermove", onUnstuckWindowMove);
+    }
+  }
+
+  function activateHoverScroll(idx: number, normX: number) {
+    if (performance.now() - lastWheelMs < 300) return;
+    if (!isHoveringBar && canvas instanceof HTMLCanvasElement) {
+      const stickyTop = stickyBar
+        ? parseFloat(getComputedStyle(stickyBar).top) || 64
+        : 64;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.top > stickyTop + 16) {
+        unstuckBand = { top: rect.top - 12, bottom: rect.bottom + 12 };
+        window.addEventListener("pointermove", onUnstuckWindowMove, {
+          passive: true,
+        });
+      }
+    }
+    isHoveringBar = true;
+    setActiveRow(idx);
+    scheduleHoverScroll(normX);
+  }
+
+  function onUnstuckWindowMove(e: PointerEvent) {
+    if (isScrubbing || unstuckBand === null || !(canvas instanceof HTMLCanvasElement)) {
+      clearUnstuckBand();
+      return;
+    }
+    const stickyTop = stickyBar
+      ? parseFloat(getComputedStyle(stickyBar).top) || 64
+      : 64;
+    const rect = canvas.getBoundingClientRect();
+    if (
+      e.clientX >= rect.left &&
+      e.clientX <= rect.right &&
+      e.clientY >= rect.top &&
+      e.clientY <= rect.bottom
+    ) {
+      if (rect.top <= stickyTop + 16) {
+        clearUnstuckBand();
+      }
+      return;
+    }
+    if (
+      e.clientX >= rect.left &&
+      e.clientX <= rect.right &&
+      e.clientY >= unstuckBand.top &&
+      e.clientY <= unstuckBand.bottom
+    ) {
+      const normX = clampValue(
+        (e.clientX - rect.left) / Math.max(1, rect.width),
+        0,
+        1,
+      );
+      const idx = clampValue(
+        Math.floor(normX * rows.length),
+        0,
+        rows.length - 1,
+      );
+      setActiveRow(idx);
+      osc?.setRoleIndex(idx);
+      osc?.setScrollProgress(normX);
+      scheduleHoverScroll(normX);
+      return;
+    }
+    clearUnstuckBand();
+    isHoveringBar = false;
+    stopHoverScroll();
+  }
 
   function getAnchorY(): number {
     const stickyTop = stickyBar
@@ -140,7 +227,18 @@ const initialValueText = firstEntry
     );
   }
 
+  function stopHoverScroll() {
+    hoverTargetY = null;
+    if (hoverScrollRafId !== null) {
+      cancelAnimationFrame(hoverScrollRafId);
+      hoverScrollRafId = null;
+    }
+  }
+
   function scrollToRole(idx: number, smooth: boolean) {
+    clearHoverEntryTimer();
+    clearUnstuckBand();
+    stopHoverScroll();
     const row = rows[idx];
     if (!row) return;
     const targetY = clampValue(
@@ -152,12 +250,12 @@ const initialValueText = firstEntry
     programmaticScrollUntil = performance.now() + (useSmooth ? 550 : 80);
     window.scrollTo({
       top: targetY,
-      behavior: useSmooth ? "smooth" : "auto",
+      behavior: useSmooth ? "smooth" : "instant",
     });
   }
 
-  function scrollToNorm(normX: number) {
-    if (rows.length === 0) return;
+  function getTargetYForNorm(normX: number): number {
+    if (rows.length === 0) return window.scrollY;
     const clamped = clampValue(normX, 0, 1);
     const scaled = clamped * rows.length;
     const idx = Math.min(rows.length - 1, Math.floor(scaled));
@@ -174,11 +272,63 @@ const initialValueText = firstEntry
       docTarget = rowDocTop + local * Math.min(row.offsetHeight * 0.35, 80);
     }
 
+    return clampValue(docTarget - getAnchorY(), 0, getMaxScroll());
+  }
+
+  function scrollToNorm(normX: number) {
+    if (rows.length === 0) return;
+    stopHoverScroll();
     programmaticScrollUntil = performance.now() + 80;
     window.scrollTo({
-      top: clampValue(docTarget - getAnchorY(), 0, getMaxScroll()),
-      behavior: "auto",
+      top: getTargetYForNorm(normX),
+      behavior: "instant",
     });
+  }
+
+  function tickHoverScroll(nowMs: number) {
+    hoverScrollRafId = null;
+    if (hoverTargetY === null || isScrubbing) return;
+    if (reducedMotionQuery.matches) {
+      window.scrollTo({ top: hoverTargetY, behavior: "instant" });
+      hoverTargetY = null;
+      programmaticScrollUntil = performance.now() + 80;
+      return;
+    }
+    const dt =
+      lastHoverFrameMs > 0
+        ? Math.max(0.004, Math.min(0.05, (nowMs - lastHoverFrameMs) / 1000))
+        : 0.016;
+    lastHoverFrameMs = nowMs;
+    const diff = hoverTargetY - window.scrollY;
+    if (Math.abs(diff) <= 0.75) {
+      window.scrollTo({ top: hoverTargetY, behavior: "instant" });
+      hoverTargetY = null;
+      programmaticScrollUntil = performance.now() + 80;
+      return;
+    }
+    const nextY = window.scrollY + diff * (1 - Math.exp(-dt * 12));
+    window.scrollTo({ top: nextY, behavior: "instant" });
+    programmaticScrollUntil = performance.now() + 80;
+    hoverScrollRafId = requestAnimationFrame(tickHoverScroll);
+  }
+
+  function scheduleHoverScroll(normX: number) {
+    if (rows.length === 0) return;
+    hoverTargetY = getTargetYForNorm(normX);
+    if (reducedMotionQuery.matches) {
+      if (hoverScrollRafId !== null) {
+        cancelAnimationFrame(hoverScrollRafId);
+        hoverScrollRafId = null;
+      }
+      window.scrollTo({ top: hoverTargetY, behavior: "instant" });
+      hoverTargetY = null;
+      programmaticScrollUntil = performance.now() + 80;
+      return;
+    }
+    if (hoverScrollRafId === null) {
+      lastHoverFrameMs = performance.now();
+      hoverScrollRafId = requestAnimationFrame(tickHoverScroll);
+    }
   }
 
   let osc: OscilloscopeHandle | null = null;
@@ -191,11 +341,38 @@ const initialValueText = firstEntry
         periods,
         roles,
       );
-      osc.setHoverCallback((idx) => {
-        setActiveRow(idx);
+      osc.setHoverCallback((idx, normX, active, dxPx, dyPx) => {
+        if (active) {
+          if (performance.now() - lastWheelMs < 300) return;
+          if (!isHoveringBar) {
+            if (Math.abs(dyPx) > Math.abs(dxPx) * 1.5 && Math.abs(dyPx) > 4) {
+              clearHoverEntryTimer();
+              return;
+            }
+            if (dxPx === 0 && dyPx === 0) {
+              clearHoverEntryTimer();
+              hoverEntryTimer = window.setTimeout(() => {
+                hoverEntryTimer = null;
+                activateHoverScroll(idx, normX);
+              }, 50);
+              return;
+            }
+          }
+          clearHoverEntryTimer();
+          activateHoverScroll(idx, normX);
+        } else {
+          clearHoverEntryTimer();
+          if (unstuckBand !== null) return;
+          isHoveringBar = false;
+          stopHoverScroll();
+        }
       });
       osc.setScrubCallback((normX, idx, phase) => {
         if (phase === "start") {
+          clearHoverEntryTimer();
+          clearUnstuckBand();
+          stopHoverScroll();
+          isHoveringBar = false;
           isScrubbing = true;
           scrubStartNorm = normX;
           didDragScrub = false;
@@ -226,7 +403,14 @@ const initialValueText = firstEntry
 
   const syncFromScroll = () => {
     if (rows.length === 0) return;
-    if (isScrubbing || performance.now() < programmaticScrollUntil) return;
+    if (
+      isScrubbing ||
+      isHoveringBar ||
+      hoverTargetY !== null ||
+      performance.now() < programmaticScrollUntil
+    ) {
+      return;
+    }
     const firstRect = rows[0]!.getBoundingClientRect();
     const lastRect = rows[rows.length - 1]!.getBoundingClientRect();
     if (lastRect.bottom < 0 || firstRect.top > window.innerHeight) return;
@@ -282,7 +466,12 @@ const initialValueText = firstEntry
   };
 
   const cancelProgrammaticScroll = () => {
+    lastWheelMs = performance.now();
+    clearHoverEntryTimer();
+    clearUnstuckBand();
+    isHoveringBar = false;
     programmaticScrollUntil = 0;
+    stopHoverScroll();
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -320,7 +509,7 @@ const initialValueText = firstEntry
     if (Number.isNaN(idx) || idx < 0) return;
 
     const activate = () => {
-      if (isScrubbing) return;
+      if (isScrubbing || isHoveringBar) return;
       if (activeIdx !== idx) {
         setActiveRow(idx);
         osc?.setRoleIndex(idx);
@@ -334,6 +523,9 @@ const initialValueText = firstEntry
 
   const onPageHide = (event: PageTransitionEvent) => {
     if (event.persisted) return;
+    clearHoverEntryTimer();
+    clearUnstuckBand();
+    stopHoverScroll();
     if (scrollRafId !== null) {
       cancelAnimationFrame(scrollRafId);
       scrollRafId = null;

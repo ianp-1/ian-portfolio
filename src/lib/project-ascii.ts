@@ -15,7 +15,9 @@ export interface DestroyableHandle {
 export interface OscilloscopeHandle {
   setRoleIndex: (idx: number) => void;
   setScrollProgress: (norm: number) => void;
-  setHoverCallback: (cb: (idx: number) => void) => void;
+  setHoverCallback: (
+    cb: (idx: number, normX: number, active: boolean, dxPx: number, dyPx: number) => void,
+  ) => void;
   setScrubCallback: (
     cb: (normX: number, idx: number, phase: "start" | "move" | "end") => void,
   ) => void;
@@ -279,6 +281,7 @@ function mountCanvasLoop(
 
   const onPointerLeave = () => {
     if (isDragging) return;
+    lastMoveMs = 0;
     pointerActiveTarget = 0;
     if (reducedMotion) pointerActive = 0;
     handlers?.onPointerLeave?.(currentState());
@@ -1423,19 +1426,18 @@ export function mountExperienceOscilloscope(
   let scrollProgressNorm: number | null = null;
   let isPointerHovering = false;
   let isScrubbing = false;
-  let hoverCallback: ((idx: number) => void) | null = null;
+  let hoverCallback:
+    | ((idx: number, normX: number, active: boolean, dxPx: number, dyPx: number) => void)
+    | null = null;
   let scrubCallback: ((normX: number, idx: number, phase: "start" | "move" | "end") => void) | null =
     null;
 
-  const setActiveSlot = (nextIdx: number, notifyHover: boolean) => {
+  const setActiveSlot = (nextIdx: number) => {
     const clamped = clamp(nextIdx, 0, safeCount - 1);
     if (clamped !== activeIdx) {
       prevIdx = activeIdx;
       activeIdx = clamped;
       morph = isReducedMotionPreferred() ? 1 : 0;
-      if (notifyHover) {
-        hoverCallback?.(activeIdx);
-      }
     }
   };
 
@@ -1444,7 +1446,7 @@ export function mountExperienceOscilloscope(
     if (scrollProgressNorm !== null) {
       cursorTargetNorm = scrollProgressNorm;
       const scrollSlot = clamp(Math.floor(scrollProgressNorm * safeCount), 0, safeCount - 1);
-      setActiveSlot(scrollSlot, true);
+      setActiveSlot(scrollSlot);
     } else {
       cursorTargetNorm = (activeIdx + 0.5) / safeCount;
     }
@@ -1706,10 +1708,10 @@ export function mountExperienceOscilloscope(
         cursorNorm = clampedNorm;
         scrollProgressNorm = clampedNorm;
         const idx = clamp(Math.floor(clampedNorm * safeCount), 0, safeCount - 1);
-        setActiveSlot(idx, true);
+        setActiveSlot(idx);
         scrubCallback?.(clampedNorm, idx, "start");
       },
-      onPointerMove: (normX, _ny, _dx, _dy, _dt, state) => {
+      onPointerMove: (normX, _ny, dxPx, dyPx, _dt, state) => {
         const clampedNorm = clamp01(normX);
         const idx = clamp(Math.floor(clampedNorm * safeCount), 0, safeCount - 1);
         if (state.isDragging && isScrubbing) {
@@ -1717,14 +1719,16 @@ export function mountExperienceOscilloscope(
           cursorTargetNorm = clampedNorm;
           cursorNorm = clampedNorm;
           scrollProgressNorm = clampedNorm;
-          setActiveSlot(idx, true);
+          setActiveSlot(idx);
           scrubCallback?.(clampedNorm, idx, "move");
           return;
         }
         isPointerHovering = true;
         cursorTargetNorm = clampedNorm;
+        scrollProgressNorm = clampedNorm;
         if (state.reducedMotion) cursorNorm = clampedNorm;
-        setActiveSlot(idx, true);
+        setActiveSlot(idx);
+        hoverCallback?.(idx, clampedNorm, true, dxPx, dyPx);
       },
       onPointerUp: (normX, _ny, pxX, pxY, _dragDistPx, state) => {
         const clampedNorm = clamp01(normX);
@@ -1743,9 +1747,10 @@ export function mountExperienceOscilloscope(
         isScrubbing = false;
         restoreScanCursor(state.reducedMotion);
       },
-      onPointerLeave: (state) => {
+      onPointerLeave: () => {
         if (isScrubbing) return;
-        restoreScanCursor(state.reducedMotion);
+        isPointerHovering = false;
+        hoverCallback?.(activeIdx, cursorTargetNorm, false, 0, 0);
       },
     },
   );
@@ -1759,13 +1764,14 @@ export function mountExperienceOscilloscope(
           cursorNorm = cursorTargetNorm;
         }
       }
-      setActiveSlot(clamped, false);
+      setActiveSlot(clamped);
       controller.requestRedraw();
     },
     setScrollProgress: (norm: number) => {
       const clampedNorm = clamp01(norm);
       scrollProgressNorm = clampedNorm;
-      if (!isPointerHovering && !isScrubbing) {
+      if (!isScrubbing) {
+        isPointerHovering = false;
         cursorTargetNorm = clampedNorm;
         if (isReducedMotionPreferred()) {
           cursorNorm = cursorTargetNorm;
@@ -1773,7 +1779,9 @@ export function mountExperienceOscilloscope(
         }
       }
     },
-    setHoverCallback: (cb: (idx: number) => void) => {
+    setHoverCallback: (
+      cb: (idx: number, normX: number, active: boolean, dxPx: number, dyPx: number) => void,
+    ) => {
       hoverCallback = cb;
     },
     setScrubCallback: (
