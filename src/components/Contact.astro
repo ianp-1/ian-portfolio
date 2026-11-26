@@ -25,24 +25,19 @@ const socials = [
     </span>
   </a>
 
-  <div class="reveal mt-10 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3">
-    <div class="flex flex-wrap gap-x-6 gap-y-3">
-      {
-        socials.map((s) => (
-          <a
-            href={s.href}
-            target={s.external ? "_blank" : undefined}
-            rel={s.external ? "noopener noreferrer" : undefined}
-            class="link-underline font-mono text-sm font-medium text-muted hover:text-ink"
-          >
-            {s.label}
-          </a>
-        ))
-      }
-    </div>
-    <p class="font-mono text-sm text-muted">
-      {SITE.location}
-    </p>
+  <div class="reveal mt-10 flex flex-wrap gap-x-6 gap-y-3">
+    {
+      socials.map((s) => (
+        <a
+          href={s.href}
+          target={s.external ? "_blank" : undefined}
+          rel={s.external ? "noopener noreferrer" : undefined}
+          class="link-underline font-mono text-sm font-medium text-muted hover:text-ink"
+        >
+          {s.label}
+        </a>
+      ))
+    }
   </div>
 </section>
 

@@ -43,6 +43,7 @@ test("renders the latest resume experience, ordering, and stack", async () => {
   // Stale text removed
   assert.doesNotMatch(html, /Incoming Software Engineer Intern/);
   assert.doesNotMatch(html, /Aug 2025 — Present/);
+  assert.doesNotMatch(html, /Boston, MA/);
 
   // Interactive experience timeline scrubber affordances
   assert.match(html, /id="exp-oscilloscope"[^>]*role="slider"/);

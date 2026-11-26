@@ -3,7 +3,6 @@ export const SITE = {
   role: "Software Engineer",
   tagline:
     "Software engineer. Selected work, experience, and stack.",
-  location: "Boston, MA",
   email: "ipang@purdue.edu",
 };
 
