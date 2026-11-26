@@ -53,4 +53,8 @@ test("renders the latest resume experience, ordering, and stack", async () => {
   assert.match(favicon, /#080808/);
   assert.match(favicon, /#F5F5F5/i);
   assert.doesNotMatch(favicon, /#93c15f/i);
+
+  // Boston skyline ASCII backdrop asset is built into dist
+  const skyline = await readFile(new URL("../dist/boston-skyline.jpg", import.meta.url));
+  assert.ok(skyline.byteLength > 1024, "Expected dist/boston-skyline.jpg to exist");
 });

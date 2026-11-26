@@ -16,261 +16,81 @@ export interface BackdropHandle {
   destroy: () => void;
 }
 
-const FBO_W = 192;
-const FBO_H = 108;
+const SKYLINE_SRC = "/boston-skyline.jpg";
+const SKYLINE_W = 1024;
+const SKYLINE_H = 492;
+const SKYLINE_ASPECT = SKYLINE_W / SKYLINE_H;
 const STATIC_TIME_SEC = 2.4;
 
-const PASS1_RAYMARCH_FRAGMENT = `#version 300 es
+const BOSTON_BACKDROP_FRAGMENT = `#version 300 es
 precision highp float;
 
 in vec2 vUv;
 out vec4 fragColor;
 
+uniform sampler2D uSkylineTex;
+uniform sampler2D uAtlasTex;
+uniform vec2 uGridSize;
+uniform vec2 uSkylineTexel;
+uniform vec2 uAtlasDims;
+uniform float uAspect;
 uniform float uTime;
 uniform float uScroll;
 uniform float uScrollVel;
-uniform vec2 uPointer;
-uniform float uAspect;
-
-const float PI = 3.14159265359;
-
-mat2 rot2(float a) {
-  float c = cos(a);
-  float s = sin(a);
-  return mat2(c, -s, s, c);
-}
-
-float smin(float a, float b, float k) {
-  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-  return mix(b, a, h) - k * h * (1.0 - h);
-}
-
-float sdTorus(vec3 p, vec2 t) {
-  vec2 q = vec2(length(p.xz) - t.x, p.y);
-  return length(q) - t.y;
-}
-
-float sdOctahedron(vec3 p, float s) {
-  p = abs(p);
-  float m = p.x + p.y + p.z - s;
-  vec3 q;
-  if (3.0 * p.x < m) {
-    q = p.xyz;
-  } else if (3.0 * p.y < m) {
-    q = p.yzx;
-  } else if (3.0 * p.z < m) {
-    q = p.zxy;
-  } else {
-    return m * 0.57735027;
-  }
-  float k = clamp(0.5 * (q.z - q.y + s), 0.0, s);
-  return length(vec3(q.x, q.y - s + k, q.z - k));
-}
-
-// 1) Work: Twisted Toroidal Lattice + Sculptural Gyroid
-float sdWorkSculpture(vec3 p) {
-  vec3 q = p;
-  q.xz *= rot2(uTime * 0.24 + uScroll * 2.2);
-  q.xy *= rot2(0.38 + sin(uTime * 0.17) * 0.18 + uScrollVel * 0.18);
-  vec3 twist = q;
-  twist.xy *= rot2(q.z * 0.95);
-  float dTorus = sdTorus(twist, vec2(1.18, 0.42));
-  float gyroid = abs(dot(sin(q * 3.15), cos(q.yzx * 3.15))) / 3.15 - 0.075;
-  float carved = max(dTorus, -gyroid * 0.65);
-  float coreRing = sdTorus(q.xzy, vec2(0.72, 0.085));
-  return smin(carved, coreRing, 0.14);
-}
-
-// 2) Experience: Sweeping Isometric Wave Ribbon Field + Orbital Band
-float sdExperienceSculpture(vec3 p) {
-  vec3 q = p;
-  q.yz *= rot2(0.58);
-  q.xz *= rot2(-0.36 + uScroll * 1.4 + uTime * 0.10);
-
-  float h1 =
-    sin(q.x * 2.0 - uTime * 0.9 + uScroll * 5.0) * 0.34 +
-    cos(q.z * 2.3 + uTime * 0.65) * 0.24 +
-    sin((q.x + q.z) * 3.4 - uTime * 0.4) * 0.11;
-  float slab = abs(q.y + 0.10 - h1) - 0.125;
-  float envelope = length(q * vec3(0.48, 0.44, 0.48)) - 1.24;
-  float sheet = max(slab, envelope);
-
-  vec3 r = p;
-  r.xy *= rot2(-0.38);
-  r.xz *= rot2(uTime * 0.22 + uScroll * 1.8);
-  float horizonRing = sdTorus(r - vec3(0.0, 0.44, 0.0), vec2(1.42, 0.10));
-  return smin(sheet * 0.72, horizonRing, 0.16);
-}
-
-// 3) Stack: Nested Hollow Octahedron + Dual Gyroscopic Rings
-float sdStackSculpture(vec3 p) {
-  vec3 q = p;
-  q.xz *= rot2(uTime * 0.34 + uScroll * 2.4);
-  q.yz *= rot2(0.46 + uTime * 0.21);
-  float oct = sdOctahedron(q, 1.34);
-  float tunnelX = length(q.yz) - 0.42;
-  float tunnelY = length(q.xz) - 0.42;
-  float tunnelZ = length(q.xy) - 0.42;
-  float tunnels = min(tunnelX, min(tunnelY, tunnelZ));
-  float cage = max(oct, -tunnels);
-
-  vec3 r1 = p;
-  r1.xy *= rot2(0.84 + uTime * 0.16);
-  r1.yz *= rot2(0.54 + uScroll * 1.3);
-  float ring1 = sdTorus(r1, vec2(1.48, 0.088));
-
-  vec3 r2 = p;
-  r2.yz *= rot2(-0.74 - uTime * 0.18);
-  r2.xz *= rot2(-0.52 + uScroll * 1.7);
-  float ring2 = sdTorus(r2, vec2(1.22, 0.082));
-
-  return smin(cage, min(ring1, ring2), 0.10);
-}
-
-// 4) Contact: Tilted Accretion Disk + Standing Horizon Ripples
-float sdContactSculpture(vec3 p) {
-  vec3 q = p;
-  q.yz *= rot2(0.52 + sin(uTime * 0.21) * 0.08);
-  q.xz *= rot2(uTime * 0.18 + uScroll * 1.2);
-  float r = length(q.xz);
-  float ripple = sin(r * 11.5 - uTime * 2.1) * 0.065 * smoothstep(2.2, 0.65, r);
-  float disk = sdTorus(vec3(q.x, (q.y - ripple) * 1.9, q.z), vec2(1.28, 0.36));
-  float outerHalo = sdTorus(q, vec2(1.78, 0.072));
-  float voidCore = length(q) - 0.54;
-  return max(smin(disk * 0.68, outerHalo, 0.12), -voidCore);
-}
-
-float mapScene(vec3 p) {
-  float s = clamp(uScroll, 0.0, 1.0);
-  // Checkpoints aligned evenly to 0.00 (Work), 0.333 (Experience), 0.667 (Stack), 1.00 (Contact)
-  float w0 = 1.0 - smoothstep(0.12, 0.30, s);
-  float w1 = smoothstep(0.12, 0.30, s) * (1.0 - smoothstep(0.45, 0.62, s));
-  float w2 = smoothstep(0.45, 0.62, s) * (1.0 - smoothstep(0.76, 0.94, s));
-  float w3 = smoothstep(0.76, 0.94, s);
-  float wSum = max(0.0001, w0 + w1 + w2 + w3);
-
-  float d = 0.0;
-  if (w0 > 0.001) d += (w0 / wSum) * sdWorkSculpture(p);
-  if (w1 > 0.001) d += (w1 / wSum) * sdExperienceSculpture(p);
-  if (w2 > 0.001) d += (w2 / wSum) * sdStackSculpture(p);
-  if (w3 > 0.001) d += (w3 / wSum) * sdContactSculpture(p);
-  return d;
-}
-
-vec3 calcNormal(vec3 p) {
-  const vec2 e = vec2(0.0028, -0.0028);
-  return normalize(
-    e.xyy * mapScene(p + e.xyy) +
-    e.yyx * mapScene(p + e.yyx) +
-    e.yxy * mapScene(p + e.yxy) +
-    e.xxx * mapScene(p + e.xxx)
-  );
-}
-
-void main() {
-  vec2 p = (vUv * 2.0 - 1.0) * vec2(uAspect, 1.0);
-  vec2 ptr = (uPointer - 0.5) * 2.0;
-
-  float camDist = uAspect < 0.9 ? 4.45 : 3.65;
-  float azim = ptr.x * 0.24 + uScroll * 0.45;
-  float elev = -ptr.y * 0.18 + clamp(uScrollVel * 0.09, -0.24, 0.24);
-
-  vec3 ro = vec3(
-    sin(azim) * cos(elev),
-    sin(elev) + (0.5 - uScroll) * 0.22,
-    cos(azim) * cos(elev)
-  ) * camDist;
-
-  vec3 forward = normalize(-ro);
-  vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), forward));
-  vec3 up = cross(forward, right);
-  vec3 rd = normalize(forward * 1.48 + right * p.x + up * p.y);
-
-  float t = 0.0;
-  float minDist = 99.0;
-  bool hit = false;
-
-  for (int i = 0; i < 40; i++) {
-    vec3 pos = ro + rd * t;
-    float d = mapScene(pos);
-    minDist = min(minDist, d);
-    if (d < 0.0038) {
-      hit = true;
-      break;
-    }
-    t += d;
-    if (t > 9.5) break;
-  }
-
-  float aura = exp(-minDist * 5.2) * 0.24;
-
-  if (!hit) {
-    fragColor = vec4(aura * 0.75, aura * 0.65, 0.5, 0.0);
-    return;
-  }
-
-  vec3 pos = ro + rd * t;
-  vec3 n = calcNormal(pos);
-
-  vec3 keyDir = normalize(vec3(0.68 + ptr.x * 0.42, 0.85 - ptr.y * 0.25, 0.62));
-  vec3 fillDir = normalize(vec3(-0.75, -0.35, 0.55));
-  vec3 viewDir = -rd;
-
-  float diffKey = max(dot(n, keyDir), 0.0);
-  float diffFill = max(dot(n, fillDir), 0.0) * 0.34;
-  vec3 halfVec = normalize(keyDir + viewDir);
-  float spec = pow(max(dot(n, halfVec), 0.0), 22.0);
-  float fresnel = pow(1.0 - max(dot(n, viewDir), 0.0), 2.5);
-
-  float depthFade = exp(-0.042 * max(0.0, t - 1.6) * max(0.0, t - 1.6));
-  float lum = clamp((0.14 + diffKey * 0.72 + diffFill + spec * 0.45) * depthFade, 0.0, 1.0);
-  float rim = clamp((fresnel * 0.88 + spec * 0.65) * depthFade, 0.0, 1.0);
-  float sil = clamp(depthFade, 0.0, 1.0);
-
-  fragColor = vec4(lum, rim, clamp(n.x * 0.5 + 0.5, 0.0, 1.0), sil);
-}
-`;
-
-const PASS2_BACKDROP_COMPOSITOR = `#version 300 es
-precision highp float;
-
-in vec2 vUv;
-out vec4 fragColor;
-
-uniform sampler2D uFieldTex;
-uniform sampler2D uAtlasTex;
-uniform vec2 uGridSize;
-uniform vec2 uFieldTexel;
-uniform vec2 uAtlasDims;
-uniform float uAspect;
 uniform float uReveal;
+uniform float uHasSkyline;
 uniform float uIsDark;
+uniform vec2 uPointer;
 uniform vec3 uPaperColor;
 uniform vec3 uInkColor;
 uniform vec3 uMutedColor;
 uniform vec3 uAccentColor;
 uniform vec3 uAccentSecondaryColor;
 
-const float PI = 3.14159265359;
+const float IMG_ASPECT = ${(SKYLINE_W / SKYLINE_H).toFixed(6)};
 
-float sampleField(vec2 uv) {
-  vec4 c = texture(uFieldTex, clamp(uv, 0.002, 0.998));
-  return c.r * 0.55 + c.a * 0.75;
+float hash21(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
 }
 
-float angleToEdgeGlyph(float angle) {
-  if (angle < PI * 0.125 || angle >= PI * 0.875) {
-    return 0.0; // '|'
-  } else if (angle < PI * 0.375) {
-    return 3.0; // '\\'
-  } else if (angle < PI * 0.625) {
-    return 2.0; // '-'
-  }
-  return 1.0; // '/'
+vec2 screenToSkylineUv(vec2 uv) {
+  // Edge-to-edge cover framing (zero seams or blank bars across all viewports)
+  float coverZoom = 1.06;
+  float spanX = clamp((uAspect / IMG_ASPECT) / coverZoom, 0.36, 1.0);
+  float imgHeightVh = (uAspect / IMG_ASPECT) / spanX;
+
+  vec2 ptr = (uPointer - 0.5) * 2.0;
+  float panRangeX = max(0.0, 1.0 - spanX);
+  float panX = clamp(
+    uScroll * panRangeX + ptr.x * min(0.014, panRangeX * 0.5 + 0.007),
+    0.0,
+    panRangeX
+  );
+
+  float extraH = max(0.0, imgHeightVh - 1.0);
+  float topOffset =
+    -extraH * mix(0.25, 0.78, uScroll) -
+    ptr.y * 0.012 -
+    clamp(uScrollVel * 0.010, -0.02, 0.02);
+
+  float screenYTop = 1.0 - uv.y;
+  float texX = panX + uv.x * spanX;
+  float texY = (screenYTop - topOffset) / max(0.001, imgHeightVh);
+  return vec2(texX, texY);
+}
+
+float rgbLum(vec3 c) {
+  return dot(c, vec3(0.299, 0.587, 0.114));
+}
+
+vec3 samplePhoto(vec2 texUv) {
+  return texture(uSkylineTex, clamp(texUv, 0.001, 0.999)).rgb;
 }
 
 void main() {
-  if (uReveal <= 0.001) {
+  if (uReveal <= 0.001 || uHasSkyline < 0.5) {
     fragColor = vec4(uPaperColor, 1.0);
     return;
   }
@@ -279,64 +99,86 @@ void main() {
   vec2 cellCenterUv = (cellIdx + 0.5) / uGridSize;
   vec2 cellUv = fract(vUv * uGridSize);
 
-  vec4 center = texture(uFieldTex, clamp(cellCenterUv, 0.002, 0.998));
+  vec2 texUv = screenToSkylineUv(cellCenterUv);
+  float waterMask = smoothstep(0.648, 0.676, texUv.y);
+  float ripple = (
+    sin(texUv.y * 95.0 - uTime * 1.45 + texUv.x * 14.0 + uScroll * 5.0) * 0.6 +
+    sin(texUv.y * 165.0 + uTime * 1.05 - texUv.x * 22.0) * 0.4
+  ) * 0.0028 * waterMask;
 
-  vec2 stepUv = max(uFieldTexel, 0.72 / uGridSize);
-  float tl = sampleField(cellCenterUv + vec2(-stepUv.x, stepUv.y));
-  float tc = sampleField(cellCenterUv + vec2(0.0, stepUv.y));
-  float tr = sampleField(cellCenterUv + vec2(stepUv.x, stepUv.y));
-  float ml = sampleField(cellCenterUv + vec2(-stepUv.x, 0.0));
-  float mr = sampleField(cellCenterUv + vec2(stepUv.x, 0.0));
-  float bl = sampleField(cellCenterUv + vec2(-stepUv.x, -stepUv.y));
-  float bc = sampleField(cellCenterUv + vec2(0.0, -stepUv.y));
-  float br = sampleField(cellCenterUv + vec2(stepUv.x, -stepUv.y));
+  vec2 sampleUv = vec2(clamp(texUv.x + ripple, 0.001, 0.999), clamp(texUv.y, 0.001, 0.999));
+  vec3 rgb = samplePhoto(sampleUv);
+  float lum = rgbLum(rgb);
 
-  float gx = (tr + 2.0 * mr + br) - (tl + 2.0 * ml + bl);
-  float gy = (tl + 2.0 * tc + tr) - (bl + 2.0 * bc + br);
-  float edgeMag = length(vec2(gx, gy));
+  // Micro-contrast against neighboring texels keeps windows and silhouettes sharp
+  vec2 stepUv = max(uSkylineTexel * 1.5, vec2(0.75) / uGridSize);
+  float nL = rgbLum(samplePhoto(sampleUv + vec2(-stepUv.x, 0.0)));
+  float nR = rgbLum(samplePhoto(sampleUv + vec2(stepUv.x, 0.0)));
+  float nT = rgbLum(samplePhoto(sampleUv + vec2(0.0, -stepUv.y)));
+  float nB = rgbLum(samplePhoto(sampleUv + vec2(0.0, stepUv.y)));
+  float avgNbr = (nL + nR + nT + nB) * 0.25;
+  float localDiff = abs(lum - avgNbr);
 
-  float lum = center.r;
-  float rim = center.g;
-  float sil = center.a;
+  // Subtle Charles River shimmer
+  float waterShimmer = 0.92 + 0.08 * sin(texUv.y * 120.0 - uTime * 1.6 + texUv.x * 11.0);
+  lum = mix(lum, clamp(lum * waterShimmer, 0.0, 1.0), waterMask);
 
-  // Keep edge slashes crisp on silhouettes and volumetric creases
-  bool activeEdge = edgeMag > 0.34 && (sil > 0.05 || rim > 0.14);
-  float atlasRow = float(${ATLAS_SPEC.rowAscii});
-  float glyphIdx = 0.0;
+  // Warm city windows & waterfront beacons with faint nocturnal twinkle
+  float warmth = clamp((rgb.r - rgb.b) * 1.9, 0.0, 1.0);
+  float windowBase = smoothstep(0.32, 0.72, lum) * warmth * (1.0 - smoothstep(0.0, 0.45, texUv.y) * 0.4);
+  float twinkleSeed = hash21(floor(texUv * vec2(260.0, 125.0)));
+  float twinkle = 0.84 + 0.16 * sin(uTime * (1.3 + twinkleSeed * 2.1) + twinkleSeed * 6.28318);
+  float isWindow = windowBase * twinkle;
 
-  if (activeEdge) {
-    atlasRow = float(${ATLAS_SPEC.rowEdge});
-    float eAngle = mod(atan(gy, gx), PI);
-    glyphIdx = angleToEdgeGlyph(eAngle);
-  } else {
-    float count = float(${ATLAS_SPEC.asciiRamp.length});
-    float density = clamp(lum * 0.85 + rim * 0.32, 0.0, 0.999);
-    glyphIdx = floor(density * count);
-  }
+  // Contrast S-curve & cohesive 3-stop twilight tint blended with photo RGB
+  float shapedLum = smoothstep(0.06, 0.94, lum);
+  vec3 shadowTint = vec3(0.08, 0.07, 0.14);
+  vec3 midTint = vec3(0.47, 0.38, 0.58);
+  vec3 highTint = vec3(0.88, 0.71, 0.67);
+  vec3 duoTint = shapedLum < 0.5
+    ? mix(shadowTint, midTint, shapedLum * 2.0)
+    : mix(midTint, highTint, (shapedLum - 0.5) * 2.0);
+  vec3 tintedPhoto = mix(duoTint, rgb, 0.38 + warmth * 0.30);
 
-  vec2 insetCellUv = clamp(cellUv, 0.03, 0.97);
+  // Dense micro-ASCII atlas lookup
+  float rampCount = float(${ATLAS_SPEC.asciiRamp.length});
+  float glyphDensity = uIsDark > 0.5
+    ? clamp(pow(clamp(lum, 0.0, 1.0), 0.90) * 0.94 + localDiff * 0.55 + isWindow * 0.25, 0.03, 0.999)
+    : clamp((1.0 - lum) * 0.90 + localDiff * 0.50 + isWindow * 0.18, 0.03, 0.999);
+
+  float glyphIdx = floor(glyphDensity * rampCount);
+  vec2 insetCellUv = clamp(cellUv, 0.04, 0.96);
   vec2 atlasUv = vec2(
     (glyphIdx + insetCellUv.x) / uAtlasDims.x,
-    (atlasRow + (1.0 - insetCellUv.y)) / uAtlasDims.y
+    (float(${ATLAS_SPEC.rowAscii}) + (1.0 - insetCellUv.y)) / uAtlasDims.y
   );
-
   float glyphAlpha = texture(uAtlasTex, atlasUv).a;
 
-  // Soften central reading lane while leaving margins & rims sculptural
+  // Photographic cell blend: subtle tonal bed + crisp engraved micro-ASCII glyph
+  vec3 cellRgb;
+  if (uIsDark > 0.5) {
+    vec3 cellBed = tintedPhoto * (0.28 + 0.34 * lum);
+    vec3 cellGlyph = tintedPhoto * (0.85 + 0.45 * glyphDensity) + vec3(0.12, 0.08, 0.04) * isWindow;
+    cellRgb = mix(cellBed, clamp(cellGlyph, 0.0, 1.0), glyphAlpha * 0.88);
+  } else {
+    float invLum = 1.0 - lum;
+    vec3 darkInk = mix(vec3(0.16, 0.13, 0.24), tintedPhoto * 0.62, 0.50);
+    vec3 skyWash = mix(uPaperColor, tintedPhoto, 0.34);
+    vec3 cellBed = mix(skyWash, darkInk, smoothstep(0.28, 0.88, invLum) * 0.28);
+    vec3 cellGlyph = mix(tintedPhoto * 0.86, darkInk, smoothstep(0.18, 0.82, invLum));
+    cellRgb = mix(cellBed, cellGlyph, glyphAlpha * 0.86);
+  }
+
+  // Calibrated central reading-lane softening + top fixed-nav feather
   float centerDist = abs(cellCenterUv.x - 0.5) * 2.0;
-  float centerWeight = smoothstep(0.45, 0.92, centerDist);
-  float laneMin = uIsDark > 0.5 ? 0.30 : 0.24;
+  float centerWeight = smoothstep(0.38, 0.94, centerDist);
+  float laneMin = uIsDark > 0.5 ? 0.50 : 0.46;
   float laneAtten = mix(laneMin, 1.0, centerWeight);
+  float topFeather = smoothstep(0.0, 0.10, 1.0 - cellCenterUv.y);
+  float maxVis = uIsDark > 0.5 ? 0.54 : 0.42;
 
-  float maxVis = uIsDark > 0.5 ? 0.40 : 0.34;
-  float fieldStrength = smoothstep(0.05, 0.34, max(lum, max(rim, edgeMag * 0.62)));
-
-  vec3 baseColor = mix(uMutedColor, uInkColor, smoothstep(0.18, 0.72, lum));
-  vec3 edgeColor = mix(baseColor, uAccentSecondaryColor, clamp(edgeMag * 0.7, 0.0, 0.75));
-  vec3 glyphColor = mix(edgeColor, uAccentColor, smoothstep(0.28, 0.85, rim));
-
-  float alpha = uReveal * maxVis * laneAtten * fieldStrength;
-  vec3 outRgb = mix(uPaperColor, glyphColor, glyphAlpha * alpha);
+  float vis = uReveal * maxVis * laneAtten * topFeather;
+  vec3 outRgb = mix(uPaperColor, cellRgb, vis);
   fragColor = vec4(outRgb, 1.0);
 }
 `;
@@ -352,6 +194,19 @@ function clamp01(v: number): number {
 function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = clamp01((x - edge0) / (edge1 - edge0));
   return t * t * (3 - 2 * t);
+}
+
+function mixNum(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function mixVec3(
+  a: readonly [number, number, number],
+  b: readonly [number, number, number],
+  t: number,
+): [number, number, number] {
+  const k = clamp01(t);
+  return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
 }
 
 function compileShader(
@@ -420,6 +275,7 @@ interface BackdropState {
 
 interface BackdropBackend {
   uploadAtlas: (atlas: HTMLCanvasElement) => void;
+  uploadSkyline: (img: HTMLImageElement) => void;
   resize: (widthPx: number, heightPx: number) => void;
   render: (state: BackdropState) => void;
   destroy: () => void;
@@ -438,44 +294,35 @@ function createWebGL2Backdrop(
   });
   if (!gl) return null;
 
-  const progPass1 = createProgram(gl, FULLSCREEN_VERTEX_SHADER, PASS1_RAYMARCH_FRAGMENT);
-  const progPass2 = createProgram(gl, FULLSCREEN_VERTEX_SHADER, PASS2_BACKDROP_COMPOSITOR);
+  const prog = createProgram(gl, FULLSCREEN_VERTEX_SHADER, BOSTON_BACKDROP_FRAGMENT);
   const vao = gl.createVertexArray();
-  const fbo = gl.createFramebuffer();
-  const fieldTex = gl.createTexture();
+  const skylineTex = gl.createTexture();
   const atlasTex = gl.createTexture();
 
-  if (!progPass1 || !progPass2 || !vao || !fbo || !fieldTex || !atlasTex) {
-    if (progPass1) gl.deleteProgram(progPass1);
-    if (progPass2) gl.deleteProgram(progPass2);
+  if (!prog || !vao || !skylineTex || !atlasTex) {
+    if (prog) gl.deleteProgram(prog);
     if (vao) gl.deleteVertexArray(vao);
-    if (fbo) gl.deleteFramebuffer(fbo);
-    if (fieldTex) gl.deleteTexture(fieldTex);
+    if (skylineTex) gl.deleteTexture(skylineTex);
     if (atlasTex) gl.deleteTexture(atlasTex);
     return null;
   }
 
-  gl.bindTexture(gl.TEXTURE_2D, fieldTex);
+  gl.bindTexture(gl.TEXTURE_2D, skylineTex);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, FBO_W, FBO_H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fieldTex, 0);
-  const fboComplete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-  if (!fboComplete) {
-    gl.deleteProgram(progPass1);
-    gl.deleteProgram(progPass2);
-    gl.deleteVertexArray(vao);
-    gl.deleteFramebuffer(fbo);
-    gl.deleteTexture(fieldTex);
-    gl.deleteTexture(atlasTex);
-    return null;
-  }
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA,
+    1,
+    1,
+    0,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    new Uint8Array([0, 0, 0, 255]),
+  );
 
   gl.bindTexture(gl.TEXTURE_2D, atlasTex);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -485,38 +332,48 @@ function createWebGL2Backdrop(
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlasCanvas);
 
-  const u1 = {
-    uTime: gl.getUniformLocation(progPass1, "uTime"),
-    uScroll: gl.getUniformLocation(progPass1, "uScroll"),
-    uScrollVel: gl.getUniformLocation(progPass1, "uScrollVel"),
-    uPointer: gl.getUniformLocation(progPass1, "uPointer"),
-    uAspect: gl.getUniformLocation(progPass1, "uAspect"),
-  };
-
-  const u2 = {
-    uFieldTex: gl.getUniformLocation(progPass2, "uFieldTex"),
-    uAtlasTex: gl.getUniformLocation(progPass2, "uAtlasTex"),
-    uGridSize: gl.getUniformLocation(progPass2, "uGridSize"),
-    uFieldTexel: gl.getUniformLocation(progPass2, "uFieldTexel"),
-    uAtlasDims: gl.getUniformLocation(progPass2, "uAtlasDims"),
-    uAspect: gl.getUniformLocation(progPass2, "uAspect"),
-    uReveal: gl.getUniformLocation(progPass2, "uReveal"),
-    uIsDark: gl.getUniformLocation(progPass2, "uIsDark"),
-    uPaperColor: gl.getUniformLocation(progPass2, "uPaperColor"),
-    uInkColor: gl.getUniformLocation(progPass2, "uInkColor"),
-    uMutedColor: gl.getUniformLocation(progPass2, "uMutedColor"),
-    uAccentColor: gl.getUniformLocation(progPass2, "uAccentColor"),
-    uAccentSecondaryColor: gl.getUniformLocation(progPass2, "uAccentSecondaryColor"),
+  const u = {
+    uSkylineTex: gl.getUniformLocation(prog, "uSkylineTex"),
+    uAtlasTex: gl.getUniformLocation(prog, "uAtlasTex"),
+    uGridSize: gl.getUniformLocation(prog, "uGridSize"),
+    uSkylineTexel: gl.getUniformLocation(prog, "uSkylineTexel"),
+    uAtlasDims: gl.getUniformLocation(prog, "uAtlasDims"),
+    uAspect: gl.getUniformLocation(prog, "uAspect"),
+    uTime: gl.getUniformLocation(prog, "uTime"),
+    uScroll: gl.getUniformLocation(prog, "uScroll"),
+    uScrollVel: gl.getUniformLocation(prog, "uScrollVel"),
+    uReveal: gl.getUniformLocation(prog, "uReveal"),
+    uHasSkyline: gl.getUniformLocation(prog, "uHasSkyline"),
+    uIsDark: gl.getUniformLocation(prog, "uIsDark"),
+    uPointer: gl.getUniformLocation(prog, "uPointer"),
+    uPaperColor: gl.getUniformLocation(prog, "uPaperColor"),
+    uInkColor: gl.getUniformLocation(prog, "uInkColor"),
+    uMutedColor: gl.getUniformLocation(prog, "uMutedColor"),
+    uAccentColor: gl.getUniformLocation(prog, "uAccentColor"),
+    uAccentSecondaryColor: gl.getUniformLocation(prog, "uAccentSecondaryColor"),
   };
 
   let screenW = Math.max(1, canvas.width);
   let screenH = Math.max(1, canvas.height);
+  let texW = SKYLINE_W;
+  let texH = SKYLINE_H;
+  let hasSkyline = false;
 
   return {
     uploadAtlas: (nextAtlas: HTMLCanvasElement) => {
       if (gl.isContextLost()) return;
       gl.bindTexture(gl.TEXTURE_2D, atlasTex);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, nextAtlas);
+    },
+    uploadSkyline: (img: HTMLImageElement) => {
+      if (gl.isContextLost()) return;
+      texW = Math.max(1, img.naturalWidth || SKYLINE_W);
+      texH = Math.max(1, img.naturalHeight || SKYLINE_H);
+      gl.bindTexture(gl.TEXTURE_2D, skylineTex);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      hasSkyline = true;
     },
     resize: (widthPx: number, heightPx: number) => {
       screenW = Math.max(1, widthPx);
@@ -526,45 +383,36 @@ function createWebGL2Backdrop(
       if (gl.isContextLost()) return;
 
       gl.bindVertexArray(vao);
-
-      if (state.reveal > 0.001) {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-        gl.viewport(0, 0, FBO_W, FBO_H);
-        gl.useProgram(progPass1);
-        gl.uniform1f(u1.uTime, state.timeSec);
-        gl.uniform1f(u1.uScroll, state.scroll);
-        gl.uniform1f(u1.uScrollVel, state.scrollVel);
-        gl.uniform2f(u1.uPointer, state.pointerX, state.pointerY);
-        gl.uniform1f(u1.uAspect, state.aspect);
-        gl.drawArrays(gl.TRIANGLES, 0, 3);
-      }
-
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, screenW, screenH);
-      gl.useProgram(progPass2);
+      gl.useProgram(prog);
 
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, fieldTex);
-      gl.uniform1i(u2.uFieldTex, 0);
+      gl.bindTexture(gl.TEXTURE_2D, skylineTex);
+      gl.uniform1i(u.uSkylineTex, 0);
 
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, atlasTex);
-      gl.uniform1i(u2.uAtlasTex, 1);
+      gl.uniform1i(u.uAtlasTex, 1);
 
-      gl.uniform2f(u2.uGridSize, state.cols, state.rows);
-      gl.uniform2f(u2.uFieldTexel, 1 / FBO_W, 1 / FBO_H);
-      gl.uniform2f(u2.uAtlasDims, ATLAS_SPEC.cols, ATLAS_SPEC.rows);
-      gl.uniform1f(u2.uAspect, state.aspect);
-      gl.uniform1f(u2.uReveal, state.reveal);
-      gl.uniform1f(u2.uIsDark, state.theme.isDark ? 1.0 : 0.0);
+      gl.uniform2f(u.uGridSize, state.cols, state.rows);
+      gl.uniform2f(u.uSkylineTexel, 1 / texW, 1 / texH);
+      gl.uniform2f(u.uAtlasDims, ATLAS_SPEC.cols, ATLAS_SPEC.rows);
+      gl.uniform1f(u.uAspect, state.aspect);
+      gl.uniform1f(u.uTime, state.timeSec);
+      gl.uniform1f(u.uScroll, state.scroll);
+      gl.uniform1f(u.uScrollVel, state.scrollVel);
+      gl.uniform1f(u.uReveal, state.reveal);
+      gl.uniform1f(u.uHasSkyline, hasSkyline ? 1.0 : 0.0);
+      gl.uniform1f(u.uIsDark, state.theme.isDark ? 1.0 : 0.0);
+      gl.uniform2f(u.uPointer, state.pointerX, state.pointerY);
 
       const { paper, ink, muted, accent, accentSecondary } = state.theme;
-      gl.uniform3f(u2.uPaperColor, paper.r, paper.g, paper.b);
-      gl.uniform3f(u2.uInkColor, ink.r, ink.g, ink.b);
-      gl.uniform3f(u2.uMutedColor, muted.r, muted.g, muted.b);
-      gl.uniform3f(u2.uAccentColor, accent.r, accent.g, accent.b);
+      gl.uniform3f(u.uPaperColor, paper.r, paper.g, paper.b);
+      gl.uniform3f(u.uInkColor, ink.r, ink.g, ink.b);
+      gl.uniform3f(u.uMutedColor, muted.r, muted.g, muted.b);
+      gl.uniform3f(u.uAccentColor, accent.r, accent.g, accent.b);
       gl.uniform3f(
-        u2.uAccentSecondaryColor,
+        u.uAccentSecondaryColor,
         accentSecondary.r,
         accentSecondary.g,
         accentSecondary.b,
@@ -574,13 +422,10 @@ function createWebGL2Backdrop(
       gl.bindVertexArray(null);
     },
     destroy: () => {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.deleteVertexArray(vao);
-      gl.deleteFramebuffer(fbo);
-      gl.deleteTexture(fieldTex);
+      gl.deleteTexture(skylineTex);
       gl.deleteTexture(atlasTex);
-      gl.deleteProgram(progPass1);
-      gl.deleteProgram(progPass2);
+      gl.deleteProgram(prog);
     },
   };
 }
@@ -589,68 +434,136 @@ function createCanvas2DBackdrop(canvas: HTMLCanvasElement): BackdropBackend | nu
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
 
+  let pixels: Uint8ClampedArray | null = null;
+  let imgW = SKYLINE_W;
+  let imgH = SKYLINE_H;
+
+  const shadowTint = [0.08, 0.07, 0.14] as const;
+  const midTint = [0.47, 0.38, 0.58] as const;
+  const highTint = [0.88, 0.71, 0.67] as const;
+
   return {
     uploadAtlas: () => {},
+    uploadSkyline: (img: HTMLImageElement) => {
+      imgW = Math.max(1, img.naturalWidth || SKYLINE_W);
+      imgH = Math.max(1, img.naturalHeight || SKYLINE_H);
+      const off = document.createElement("canvas");
+      off.width = imgW;
+      off.height = imgH;
+      const offCtx = off.getContext("2d", { willReadFrequently: true });
+      if (!offCtx) return;
+      offCtx.drawImage(img, 0, 0, imgW, imgH);
+      pixels = offCtx.getImageData(0, 0, imgW, imgH).data;
+    },
     resize: () => {},
     render: (state: BackdropState) => {
-      const { cssW, cssH, widthPx, heightPx, scroll, timeSec, reveal, theme, pointerX, pointerY } =
-        state;
+      const { cssW, cssH, widthPx, scroll, timeSec, reveal, theme, pointerX, pointerY } = state;
       const dpr = widthPx / Math.max(1, cssW);
       ctx.save();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = rgbToCss(theme.paper);
       ctx.fillRect(0, 0, cssW, cssH);
 
-      if (reveal <= 0.002) {
+      if (reveal <= 0.002 || !pixels) {
         ctx.restore();
         return;
       }
 
-      const cellW = 11;
-      const cellH = 17;
-      const cols = Math.max(28, Math.floor(cssW / cellW));
-      const rows = Math.max(20, Math.floor(cssH / cellH));
+      const cellW = 7;
+      const cellH = 10;
+      const cols = Math.max(48, Math.floor(cssW / cellW));
+      const rows = Math.max(32, Math.floor(cssH / cellH));
       const actualCellW = cssW / cols;
       const actualCellH = cssH / rows;
       const aspect = cssW / Math.max(1, cssH);
       const ramp = ATLAS_SPEC.asciiRamp;
-      const cxOffset = (pointerX - 0.5) * 0.14;
-      const cyOffset = (pointerY - 0.5) * 0.1;
 
-      ctx.font = `500 13px ${CHARSET_FONT_STACK}`;
+      const coverZoom = 1.06;
+      const spanX = clamp((aspect / SKYLINE_ASPECT) / coverZoom, 0.36, 1.0);
+      const imgHeightVh = (aspect / SKYLINE_ASPECT) / spanX;
+      const panRangeX = Math.max(0, 1 - spanX);
+      const ptrX = (pointerX - 0.5) * 2;
+      const ptrY = (pointerY - 0.5) * 2;
+      const panX = clamp(
+        scroll * panRangeX + ptrX * Math.min(0.014, panRangeX * 0.5 + 0.007),
+        0,
+        panRangeX,
+      );
+      const extraH = Math.max(0, imgHeightVh - 1);
+      const topOffset = -extraH * mixNum(0.25, 0.78, scroll) - ptrY * 0.012;
+
+      ctx.font = `500 9px ${CHARSET_FONT_STACK}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
+      const laneMin = theme.isDark ? 0.5 : 0.46;
+      const maxVis = theme.isDark ? 0.52 : 0.4;
+
       for (let r = 0; r < rows; r++) {
-        const ny = (r + 0.5) / rows;
-        const py = (ny - 0.5 + cyOffset) * 2;
+        const screenYTop = (r + 0.5) / rows;
+        const topFeather = smoothstep(0, 0.1, screenYTop);
+        if (topFeather <= 0.01) continue;
+
+        const texY = clamp01((screenYTop - topOffset) / Math.max(0.001, imgHeightVh));
+        const waterMask = smoothstep(0.648, 0.676, texY);
+        const py = Math.min(imgH - 1, Math.floor(texY * imgH));
+
         for (let c = 0; c < cols; c++) {
           const nx = (c + 0.5) / cols;
-          const px = (nx - 0.5 + cxOffset) * 2 * aspect;
-          const rad = Math.hypot(px, py);
-          const ang = Math.atan2(py, px);
-          const ringDist = Math.abs(rad - (0.85 + 0.14 * Math.sin(ang * 3 + timeSec * 0.8 + scroll * 5)));
-          const band = Math.exp(-ringDist * ringDist * 18);
-          if (band < 0.12) continue;
+          const ripple =
+            Math.sin(texY * 95 - timeSec * 1.45 + nx * 14 + scroll * 5) * 0.0028 * waterMask;
+          const texX = clamp01(panX + nx * spanX + ripple);
+          const px = Math.min(imgW - 1, Math.floor(texX * imgW));
+          const offset = (py * imgW + px) * 4;
+          const pr = (pixels[offset] ?? 0) / 255;
+          const pg = (pixels[offset + 1] ?? 0) / 255;
+          const pb = (pixels[offset + 2] ?? 0) / 255;
+          const lum = 0.299 * pr + 0.587 * pg + 0.114 * pb;
+          const warmth = clamp01((pr - pb) * 1.9);
 
-          const laneMin = theme.isDark ? 0.30 : 0.24;
-          const margin = smoothstep(0.45, 0.92, Math.abs(nx - 0.5) * 2);
-          const alpha = reveal * (theme.isDark ? 0.38 : 0.30) * mixNum(laneMin, 1, margin) * band;
-          const glyph = ramp[Math.min(ramp.length - 1, Math.floor(clamp01(band) * ramp.length))] ?? ":";
+          const shapedLum = smoothstep(0.06, 0.94, lum);
+          const duo =
+            shapedLum < 0.5
+              ? mixVec3(shadowTint, midTint, shapedLum * 2)
+              : mixVec3(midTint, highTint, (shapedLum - 0.5) * 2);
+          const tinted = mixVec3(duo, [pr, pg, pb], 0.38 + warmth * 0.3);
+          const tintedRgb = { r: tinted[0], g: tinted[1], b: tinted[2] };
+
+          const centerWeight = smoothstep(0.38, 0.94, Math.abs(nx - 0.5) * 2);
+          const vis = reveal * maxVis * mixNum(laneMin, 1, centerWeight) * topFeather;
+
+          const bedRgb = theme.isDark
+            ? {
+                r: tinted[0] * (0.28 + 0.34 * lum),
+                g: tinted[1] * (0.28 + 0.34 * lum),
+                b: tinted[2] * (0.28 + 0.34 * lum),
+              }
+            : mixRgb(theme.paper, tintedRgb, 0.32 * (1 - lum * 0.6));
+
+          const x = c * actualCellW;
+          const y = r * actualCellH;
+          ctx.fillStyle = rgbToCss(bedRgb, vis * 0.65);
+          ctx.fillRect(x, y, actualCellW + 0.5, actualCellH + 0.5);
+
+          const density = theme.isDark
+            ? clamp(Math.pow(lum, 0.9) * 0.94, 0.03, 0.999)
+            : clamp((1 - lum) * 0.9, 0.03, 0.999);
+          const glyph = ramp[Math.min(ramp.length - 1, Math.floor(density * ramp.length))] ?? ".";
           if (glyph === " ") continue;
-          const colRgb = mixRgb(theme.muted, theme.accent, clamp01(band * 0.8));
-          ctx.fillStyle = rgbToCss(colRgb, alpha);
-          ctx.fillText(glyph, (c + 0.5) * actualCellW, (r + 0.5) * actualCellH);
+
+          const glyphRgb = theme.isDark
+            ? tintedRgb
+            : mixRgb(tintedRgb, { r: 0.16, g: 0.13, b: 0.24 }, smoothstep(0.18, 0.82, 1 - lum));
+          ctx.fillStyle = rgbToCss(glyphRgb, vis);
+          ctx.fillText(glyph, x + actualCellW * 0.5, y + actualCellH * 0.5);
         }
       }
       ctx.restore();
     },
-    destroy: () => {},
+    destroy: () => {
+      pixels = null;
+    },
   };
-}
-
-function mixNum(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
 }
 
 export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
@@ -665,12 +578,14 @@ export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
     backend = createCanvas2DBackdrop(canvas);
   }
 
+  let loadedSkylineImg: HTMLImageElement | null = null;
+
   let cssW = 1;
   let cssH = 1;
   let widthPx = 1;
   let heightPx = 1;
-  let cols = 96;
-  let rows = 54;
+  let cols = 180;
+  let rows = 84;
   let aspect = 16 / 9;
 
   let timeSec = reducedMotion ? STATIC_TIME_SEC : 0;
@@ -705,7 +620,6 @@ export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
         ys.push((i / 3) * maxScroll);
       }
     }
-    // Pin final checkpoint near maxScroll so Stack (~0.667) -> Contact (~1.0) separates cleanly
     ys[3] = Math.max(ys[2]! + 120, Math.min(maxScroll, ys[3]!));
     anchorScrollYs = ys;
   };
@@ -773,8 +687,8 @@ export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
     heightPx = nextH;
     aspect = cssW / cssH;
 
-    cols = clamp(Math.round(cssW / 9.5), 42, 176);
-    rows = clamp(Math.round(cssH / 15.0), 28, 100);
+    cols = clamp(Math.round(cssW / 5.4), 96, 300);
+    rows = clamp(Math.round(cssH / 8.4), 56, 144);
 
     backend?.resize(widthPx, heightPx);
     measureSectionCheckpoints();
@@ -862,10 +776,23 @@ export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
     stopLoop();
     backend?.destroy();
     backend = createCanvas2DBackdrop(canvas);
+    if (loadedSkylineImg) {
+      backend?.uploadSkyline(loadedSkylineImg);
+    }
     syncSize();
     renderSingleFrame();
     ensureLoopRunning();
   };
+
+  const skylineImg = new Image();
+  skylineImg.decoding = "async";
+  skylineImg.onload = () => {
+    if (destroyed) return;
+    loadedSkylineImg = skylineImg;
+    backend?.uploadSkyline(skylineImg);
+    renderSingleFrame();
+  };
+  skylineImg.src = SKYLINE_SRC;
 
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("pointermove", onPointerMove, { passive: true });
@@ -908,6 +835,7 @@ export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
     destroy: () => {
       if (destroyed) return;
       destroyed = true;
+      skylineImg.onload = null;
       stopLoop();
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("pointermove", onPointerMove);
