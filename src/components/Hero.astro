@@ -5,8 +5,9 @@ import { SITE, LINKS } from "../data/site";
 <section
   id="hero"
   data-hero-surface
-  class="hero-section relative min-h-[100svh] w-full overflow-hidden bg-paper"
+  class="hero-section relative min-h-[100svh] w-full overflow-hidden"
 >
+  <div class="hero-paper-veil pointer-events-none absolute inset-0" aria-hidden="true"></div>
   <canvas
     id="hero-fluid-canvas"
     class="absolute inset-0 h-full w-full select-none"
@@ -58,6 +59,13 @@ import { SITE, LINKS } from "../data/site";
 </section>
 
 <style>
+  .hero-paper-veil {
+    background: linear-gradient(to bottom, var(--paper) 0%, var(--paper) 74%, transparent 100%);
+  }
+  #hero-fluid-canvas {
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 72%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 72%, transparent 100%);
+  }
   .btn-primary {
     transition:
       transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),

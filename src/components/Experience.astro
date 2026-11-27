@@ -35,7 +35,7 @@ const initialValueText = firstEntry
         const { company, role, period, highlights } = entry.data;
         return (
           <li
-            class="exp-row reveal relative grid grid-cols-1 gap-x-10 gap-y-3 border-b border-line py-8 pl-4 last:border-b-0 md:grid-cols-[22ch_1fr] md:items-baseline md:pl-5"
+            class="exp-row reveal readable-glass relative mb-3 grid grid-cols-1 gap-x-10 gap-y-3 rounded-xl px-5 py-7 pl-5 last:mb-0 md:grid-cols-[22ch_1fr] md:items-baseline md:px-6 md:pl-6"
             data-exp-idx={idx}
             data-exp-active={idx === 0 ? "true" : "false"}
           >
@@ -562,8 +562,8 @@ const initialValueText = firstEntry
     content: "";
     position: absolute;
     left: 0;
-    top: 2rem;
-    bottom: 2rem;
+    top: 1.5rem;
+    bottom: 1.5rem;
     width: 1.5px;
     background: var(--accent);
     transform: scaleY(0);
@@ -574,7 +574,7 @@ const initialValueText = firstEntry
       opacity 0.2s ease;
   }
   .exp-row[data-exp-active="true"] {
-    background-color: color-mix(in oklab, var(--surface) 50%, transparent);
+    background-color: color-mix(in oklab, var(--surface) 76%, transparent);
   }
   .exp-row[data-exp-active="true"]::before,
   .exp-row:hover::before,

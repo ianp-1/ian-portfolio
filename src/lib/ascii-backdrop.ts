@@ -71,7 +71,6 @@ uniform float uScrollVel;
 uniform float uReveal;
 uniform float uHasSkyline;
 uniform float uIsDark;
-uniform vec2 uPointer;
 uniform vec3 uPaperColor;
 uniform vec3 uInkColor;
 uniform vec3 uMutedColor;
@@ -104,18 +103,12 @@ vec2 screenToSkylineUv(vec2 uv) {
   float spanX = clamp((uAspect / IMG_ASPECT) / coverZoom, 0.36, 1.0);
   float imgHeightVh = (uAspect / IMG_ASPECT) / spanX;
 
-  vec2 ptr = (uPointer - 0.5) * 2.0;
   float panRangeX = max(0.0, 1.0 - spanX);
-  float panX = clamp(
-    uScroll * panRangeX + ptr.x * min(0.014, panRangeX * 0.5 + 0.007),
-    0.0,
-    panRangeX
-  );
+  float panX = clamp(uScroll * panRangeX, 0.0, panRangeX);
 
   float extraH = max(0.0, imgHeightVh - 1.0);
   float topOffset =
     -extraH * mix(0.25, 0.78, uScroll) -
-    ptr.y * 0.012 -
     clamp(uScrollVel * 0.010, -0.02, 0.02);
 
   float screenYTop = 1.0 - uv.y;
@@ -147,9 +140,10 @@ void main() {
 
   float waterMask = smoothstep(0.754, 0.778, pixelTexUv.y);
   float ripple = (
-    sin(pixelTexUv.y * 95.0 - uTime * 1.45 + pixelTexUv.x * 14.0 + uScroll * 5.0) * 0.6 +
-    sin(pixelTexUv.y * 165.0 + uTime * 1.05 - pixelTexUv.x * 22.0) * 0.4
-  ) * 0.0026 * waterMask;
+    sin(pixelTexUv.y * 92.0 - uTime * 2.10 + pixelTexUv.x * 16.0 + uScroll * 5.0) * 0.50 +
+    sin(pixelTexUv.y * 165.0 + uTime * 1.45 - pixelTexUv.x * 24.0) * 0.30 +
+    cos(pixelTexUv.y * 240.0 - uTime * 3.10 + pixelTexUv.x * 38.0) * 0.20
+  ) * 0.0058 * waterMask;
 
   vec2 cellSampleUv = vec2(clamp(cellTexUv.x + ripple, 0.001, 0.999), clamp(cellTexUv.y, 0.001, 0.999));
   vec2 pixelSampleUv = vec2(clamp(pixelTexUv.x + ripple, 0.001, 0.999), clamp(pixelTexUv.y, 0.001, 0.999));
@@ -169,16 +163,33 @@ void main() {
   float avgNbr = (nL + nR + nT + nB) * 0.25;
   float localDiff = abs(lum - avgNbr);
 
-  // Subtle Harbor water shimmer
-  float waterShimmer = 0.92 + 0.08 * sin(pixelTexUv.y * 120.0 - uTime * 1.6 + pixelTexUv.x * 11.0);
-  lum = mix(lum, clamp(lum * waterShimmer, 0.0, 1.0), waterMask);
+  // Slow drifting twilight sky sheen
+  float skyMask = 1.0 - smoothstep(0.32, 0.56, pixelTexUv.y);
+  float skyWave = (
+    sin(pixelTexUv.x * 5.2 - uTime * 0.42 + pixelTexUv.y * 3.4) * 0.6 +
+    cos(pixelTexUv.x * 8.6 + uTime * 0.28 - pixelTexUv.y * 2.2) * 0.4
+  ) * 0.055 * skyMask;
+  lum = clamp(lum + skyWave, 0.0, 1.0);
 
-  // Warm city windows & waterfront beacons with faint nocturnal twinkle
+  // Living Harbor water shimmer & animated specular glints
+  float waterShimmer = 0.90 + 0.10 * sin(pixelTexUv.y * 120.0 - uTime * 2.2 + pixelTexUv.x * 11.0);
+  float waterSparkle = pow(
+    0.5 + 0.5 * sin(pixelTexUv.y * 140.0 - uTime * 2.4 + pixelTexUv.x * 26.0) *
+      cos(pixelTexUv.x * 42.0 - uTime * 1.3),
+    5.0
+  ) * waterMask * 0.24;
+  lum = mix(lum, clamp(lum * waterShimmer + waterSparkle, 0.0, 1.0), waterMask);
+
+  // Living city windows & rooftop beacons with independent twinkle & pulses
   float warmth = clamp((rgb.r - rgb.b) * 1.9, 0.0, 1.0);
   float windowBase = smoothstep(0.28, 0.68, lum) * warmth * (1.0 - smoothstep(0.0, 0.45, pixelTexUv.y) * 0.4);
   float twinkleSeed = hash21(floor(cellTexUv * vec2(340.0, 165.0)));
-  float twinkle = 0.84 + 0.16 * sin(uTime * (1.3 + twinkleSeed * 2.1) + twinkleSeed * 6.28318);
-  float isWindow = windowBase * twinkle;
+  float twinkle = 0.58 + 0.42 * sin(uTime * (1.1 + twinkleSeed * 2.9) + twinkleSeed * 6.28318);
+  float pulse = pow(
+    0.5 + 0.5 * sin(uTime * (0.7 + twinkleSeed * 1.9) + twinkleSeed * 12.566),
+    6.0
+  ) * 0.35;
+  float isWindow = windowBase * (twinkle + pulse);
 
   // Contrast S-curve & cohesive 3-stop twilight tint blended with vivid photo RGB
   float shapedLum = smoothstep(0.05, 0.90, lum);
@@ -190,8 +201,10 @@ void main() {
     : mix(midTint, highTint, (shapedLum - 0.5) * 2.0);
   vec3 tintedPhoto = mix(duoTint, rgb, 0.56 + warmth * 0.30);
 
-  // Ordered-dithered 32-char micro-ASCII atlas lookup (zero gradient banding)
-  float dither = bayer4x4(cellIdx) * 0.042;
+  // Ordered-dithered 32-char micro-ASCII atlas lookup with subtle living glyph breath
+  float cellSeed = hash21(cellIdx);
+  float glyphBreath = sin(uTime * (1.6 + cellSeed * 2.0) + cellSeed * 6.28318) * 0.024 * (0.45 + 0.55 * max(skyMask, waterMask));
+  float dither = bayer4x4(cellIdx) * 0.042 + glyphBreath;
   float rampCount = float(${MICRO_RAMP.length});
   float glyphDensity = uIsDark > 0.5
     ? clamp(pow(clamp(lum, 0.0, 1.0), 0.85) * 0.95 + localDiff * 0.72 + isWindow * 0.32 + dither, 0.02, 0.999)
@@ -220,7 +233,7 @@ void main() {
     cellRgb = mix(cellBed, cellGlyph, glyphAlpha * 0.86);
   }
 
-  // Calibrated central reading-lane softening + top fixed-nav feather
+  // Smooth cubic reveal with rising horizon veil across Hero -> Skyline transition
   float centerDist = abs(cellCenterUv.x - 0.5) * 2.0;
   float centerWeight = smoothstep(0.38, 0.94, centerDist);
   float laneMin = uIsDark > 0.5 ? 0.62 : 0.54;
@@ -228,7 +241,9 @@ void main() {
   float topFeather = smoothstep(0.0, 0.10, 1.0 - cellCenterUv.y);
   float maxVis = uIsDark > 0.5 ? 0.78 : 0.58;
 
-  float vis = uReveal * maxVis * laneAtten * topFeather;
+  float easedReveal = uReveal * uReveal * (3.0 - 2.0 * uReveal);
+  float enterVeil = smoothstep(1.12 - easedReveal * 1.45, 0.62 - easedReveal * 0.95, 1.0 - cellCenterUv.y);
+  float vis = easedReveal * mix(enterVeil, 1.0, smoothstep(0.65, 1.0, easedReveal)) * maxVis * laneAtten * topFeather;
   vec3 outRgb = mix(uPaperColor, cellRgb, vis);
   fragColor = vec4(outRgb, 1.0);
 }
@@ -319,8 +334,6 @@ interface BackdropState {
   scroll: number;
   scrollVel: number;
   reveal: number;
-  pointerX: number;
-  pointerY: number;
   theme: ThemeColors;
 }
 
@@ -396,7 +409,6 @@ function createWebGL2Backdrop(
     uReveal: gl.getUniformLocation(prog, "uReveal"),
     uHasSkyline: gl.getUniformLocation(prog, "uHasSkyline"),
     uIsDark: gl.getUniformLocation(prog, "uIsDark"),
-    uPointer: gl.getUniformLocation(prog, "uPointer"),
     uPaperColor: gl.getUniformLocation(prog, "uPaperColor"),
     uInkColor: gl.getUniformLocation(prog, "uInkColor"),
     uMutedColor: gl.getUniformLocation(prog, "uMutedColor"),
@@ -457,7 +469,6 @@ function createWebGL2Backdrop(
       gl.uniform1f(u.uReveal, state.reveal);
       gl.uniform1f(u.uHasSkyline, hasSkyline ? 1.0 : 0.0);
       gl.uniform1f(u.uIsDark, state.theme.isDark ? 1.0 : 0.0);
-      gl.uniform2f(u.uPointer, state.pointerX, state.pointerY);
 
       const { paper, ink, muted, accent, accentSecondary } = state.theme;
       gl.uniform3f(u.uPaperColor, paper.r, paper.g, paper.b);
@@ -510,7 +521,7 @@ function createCanvas2DBackdrop(canvas: HTMLCanvasElement): BackdropBackend | nu
     },
     resize: () => {},
     render: (state: BackdropState) => {
-      const { cssW, cssH, widthPx, scroll, timeSec, reveal, theme, pointerX, pointerY } = state;
+      const { cssW, cssH, widthPx, scroll, timeSec, reveal, theme } = state;
       const dpr = widthPx / Math.max(1, cssW);
       ctx.save();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -535,15 +546,9 @@ function createCanvas2DBackdrop(canvas: HTMLCanvasElement): BackdropBackend | nu
       const spanX = clamp((aspect / SKYLINE_ASPECT) / coverZoom, 0.36, 1.0);
       const imgHeightVh = (aspect / SKYLINE_ASPECT) / spanX;
       const panRangeX = Math.max(0, 1 - spanX);
-      const ptrX = (pointerX - 0.5) * 2;
-      const ptrY = (pointerY - 0.5) * 2;
-      const panX = clamp(
-        scroll * panRangeX + ptrX * Math.min(0.014, panRangeX * 0.5 + 0.007),
-        0,
-        panRangeX,
-      );
+      const panX = clamp(scroll * panRangeX, 0, panRangeX);
       const extraH = Math.max(0, imgHeightVh - 1);
-      const topOffset = -extraH * mixNum(0.25, 0.78, scroll) - ptrY * 0.012;
+      const topOffset = -extraH * mixNum(0.25, 0.78, scroll);
 
       ctx.font = `600 6.5px ${CHARSET_FONT_STACK}`;
       ctx.textAlign = "center";
@@ -551,27 +556,54 @@ function createCanvas2DBackdrop(canvas: HTMLCanvasElement): BackdropBackend | nu
 
       const laneMin = theme.isDark ? 0.62 : 0.54;
       const maxVis = theme.isDark ? 0.74 : 0.56;
+      const easedReveal = reveal * reveal * (3 - 2 * reveal);
+      const blendEnter = smoothstep(0.65, 1, easedReveal);
 
       for (let r = 0; r < rows; r++) {
         const screenYTop = (r + 0.5) / rows;
         const topFeather = smoothstep(0, 0.1, screenYTop);
         if (topFeather <= 0.01) continue;
 
+        const enterVeil = smoothstep(1.12 - easedReveal * 1.45, 0.62 - easedReveal * 0.95, screenYTop);
+        const revealAtten = easedReveal * mixNum(enterVeil, 1, blendEnter);
+        if (revealAtten <= 0.002) continue;
+
         const texY = clamp01((screenYTop - topOffset) / Math.max(0.001, imgHeightVh));
         const waterMask = smoothstep(0.754, 0.778, texY);
+        const skyMask = 1 - smoothstep(0.32, 0.56, texY);
         const py = Math.min(imgH - 1, Math.floor(texY * imgH));
 
         for (let c = 0; c < cols; c++) {
           const nx = (c + 0.5) / cols;
           const ripple =
-            Math.sin(texY * 95 - timeSec * 1.45 + nx * 14 + scroll * 5) * 0.0026 * waterMask;
+            (Math.sin(texY * 92 - timeSec * 2.1 + nx * 16 + scroll * 5) * 0.5 +
+              Math.sin(texY * 165 + timeSec * 1.45 - nx * 24) * 0.3 +
+              Math.cos(texY * 240 - timeSec * 3.1 + nx * 38) * 0.2) *
+            0.0058 *
+            waterMask;
           const texX = clamp01(panX + nx * spanX + ripple);
           const px = Math.min(imgW - 1, Math.floor(texX * imgW));
           const offset = (py * imgW + px) * 4;
           const pr = (pixels[offset] ?? 0) / 255;
           const pg = (pixels[offset + 1] ?? 0) / 255;
           const pb = (pixels[offset + 2] ?? 0) / 255;
-          const lum = 0.299 * pr + 0.587 * pg + 0.114 * pb;
+          let lum = 0.299 * pr + 0.587 * pg + 0.114 * pb;
+          const skyWave =
+            (Math.sin(texX * 5.2 - timeSec * 0.42 + texY * 3.4) * 0.6 +
+              Math.cos(texX * 8.6 + timeSec * 0.28 - texY * 2.2) * 0.4) *
+            0.055 *
+            skyMask;
+          const waterSparkle =
+            Math.pow(
+              0.5 +
+                0.5 *
+                  Math.sin(texY * 140 - timeSec * 2.4 + texX * 26) *
+                  Math.cos(texX * 42 - timeSec * 1.3),
+              5,
+            ) *
+            waterMask *
+            0.24;
+          lum = clamp01(lum + skyWave + waterSparkle);
           const warmth = clamp01((pr - pb) * 1.9);
 
           const shapedLum = smoothstep(0.05, 0.9, lum);
@@ -583,7 +615,7 @@ function createCanvas2DBackdrop(canvas: HTMLCanvasElement): BackdropBackend | nu
           const tintedRgb = { r: tinted[0], g: tinted[1], b: tinted[2] };
 
           const centerWeight = smoothstep(0.38, 0.94, Math.abs(nx - 0.5) * 2);
-          const vis = reveal * maxVis * mixNum(laneMin, 1, centerWeight) * topFeather;
+          const vis = revealAtten * maxVis * mixNum(laneMin, 1, centerWeight) * topFeather;
 
           const bedRgb = theme.isDark
             ? {
@@ -649,10 +681,6 @@ export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
   let scrollVelSmooth = 0;
   let revealSmooth = 0;
   let revealTarget = 0;
-  let pointerX = 0.5;
-  let pointerY = 0.5;
-  let pointerTargetX = 0.5;
-  let pointerTargetY = 0.5;
   let rafId: number | null = null;
   let lastFrameMs = 0;
 
@@ -694,7 +722,7 @@ export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
     const vh = Math.max(1, window.innerHeight || cssH);
     const y = Math.max(0, window.scrollY);
     scrollTarget = mapSectionPhase(y);
-    revealTarget = smoothstep(vh * 0.15, vh * 0.72, y);
+    revealTarget = smoothstep(vh * 0.22, vh * 1.18, y);
 
     if (snap || reducedMotion) {
       scrollSmooth = scrollTarget;
@@ -718,8 +746,6 @@ export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
       scroll: scrollSmooth,
       scrollVel: scrollVelSmooth,
       reveal: revealSmooth,
-      pointerX,
-      pointerY,
       theme: themeColors,
     });
   };
@@ -764,13 +790,10 @@ export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
     timeSec += dt;
 
     const kScroll = 1 - Math.exp(-dt * 9.5);
-    const kPtr = 1 - Math.exp(-dt * 5.5);
     scrollSmooth += (scrollTarget - scrollSmooth) * kScroll;
     revealSmooth += (revealTarget - revealSmooth) * kScroll;
     scrollVelTarget *= Math.exp(-dt * 8.0);
     scrollVelSmooth += (scrollVelTarget - scrollVelSmooth) * kScroll;
-    pointerX += (pointerTargetX - pointerX) * kPtr;
-    pointerY += (pointerTargetY - pointerY) * kPtr;
 
     if (revealSmooth > 0.001 || revealTarget > 0.001) {
       renderSingleFrame();
@@ -802,12 +825,6 @@ export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
     } else if (revealTarget > 0.001) {
       ensureLoopRunning();
     }
-  };
-
-  const onPointerMove = (e: PointerEvent) => {
-    if (reducedMotion) return;
-    pointerTargetX = clamp01(e.clientX / Math.max(1, window.innerWidth));
-    pointerTargetY = clamp01(e.clientY / Math.max(1, window.innerHeight));
   };
 
   const onWindowResize = () => {
@@ -848,7 +865,6 @@ export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
   skylineImg.src = SKYLINE_SRC;
 
   window.addEventListener("scroll", onScroll, { passive: true });
-  window.addEventListener("pointermove", onPointerMove, { passive: true });
   window.addEventListener("resize", onWindowResize, { passive: true });
   document.addEventListener("visibilitychange", onVisibilityChange);
   canvas.addEventListener("webglcontextlost", onContextLost);
@@ -891,7 +907,6 @@ export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
       skylineImg.onload = null;
       stopLoop();
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("resize", onWindowResize);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       canvas.removeEventListener("webglcontextlost", onContextLost);

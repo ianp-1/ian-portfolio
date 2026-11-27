@@ -168,3 +168,20 @@ p {
     transform: none;
   }
 }
+
+/* ── Subtle frosted backdrop behind text blocks over ASCII skyline ─ */
+.readable-glass {
+  background-color: color-mix(in oklab, var(--paper) 68%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(110%);
+  backdrop-filter: blur(10px) saturate(110%);
+  border: 1px solid color-mix(in oklab, var(--line) 60%, transparent);
+}
+
+:root[data-theme="dark"] .readable-glass {
+  background-color: color-mix(in oklab, var(--paper) 58%, transparent);
+  border-color: color-mix(in oklab, var(--line) 65%, transparent);
+}
+
+.section-head-readable {
+  text-shadow: 0 2px 20px color-mix(in oklab, var(--paper) 88%, transparent);
+}
