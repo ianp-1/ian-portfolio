@@ -60,11 +60,33 @@ import { SITE, LINKS } from "../data/site";
 
 <style>
   .hero-paper-veil {
-    background: linear-gradient(to bottom, var(--paper) 0%, var(--paper) 74%, transparent 100%);
+    background: linear-gradient(
+      to bottom,
+      var(--paper) 0%,
+      var(--paper) 58%,
+      color-mix(in oklab, var(--paper) 78%, transparent) 72%,
+      color-mix(in oklab, var(--paper) 38%, transparent) 85%,
+      color-mix(in oklab, var(--paper) 10%, transparent) 94%,
+      transparent 100%
+    );
   }
   #hero-fluid-canvas {
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 72%, transparent 100%);
-    mask-image: linear-gradient(to bottom, #000 0%, #000 72%, transparent 100%);
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 68%,
+      rgba(0, 0, 0, 0.68) 80%,
+      rgba(0, 0, 0, 0.22) 91%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 68%,
+      rgba(0, 0, 0, 0.68) 80%,
+      rgba(0, 0, 0, 0.22) 91%,
+      transparent 100%
+    );
   }
   .btn-primary {
     transition:

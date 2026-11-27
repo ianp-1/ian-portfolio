@@ -233,7 +233,7 @@ void main() {
     cellRgb = mix(cellBed, cellGlyph, glyphAlpha * 0.86);
   }
 
-  // Smooth cubic reveal with rising horizon veil across Hero -> Skyline transition
+  // Smooth uniform cubic crossfade across Hero -> Skyline transition
   float centerDist = abs(cellCenterUv.x - 0.5) * 2.0;
   float centerWeight = smoothstep(0.38, 0.94, centerDist);
   float laneMin = uIsDark > 0.5 ? 0.62 : 0.54;
@@ -242,8 +242,7 @@ void main() {
   float maxVis = uIsDark > 0.5 ? 0.78 : 0.58;
 
   float easedReveal = uReveal * uReveal * (3.0 - 2.0 * uReveal);
-  float enterVeil = smoothstep(1.12 - easedReveal * 1.45, 0.62 - easedReveal * 0.95, 1.0 - cellCenterUv.y);
-  float vis = easedReveal * mix(enterVeil, 1.0, smoothstep(0.65, 1.0, easedReveal)) * maxVis * laneAtten * topFeather;
+  float vis = easedReveal * maxVis * laneAtten * topFeather;
   vec3 outRgb = mix(uPaperColor, cellRgb, vis);
   fragColor = vec4(outRgb, 1.0);
 }
@@ -557,16 +556,11 @@ function createCanvas2DBackdrop(canvas: HTMLCanvasElement): BackdropBackend | nu
       const laneMin = theme.isDark ? 0.62 : 0.54;
       const maxVis = theme.isDark ? 0.74 : 0.56;
       const easedReveal = reveal * reveal * (3 - 2 * reveal);
-      const blendEnter = smoothstep(0.65, 1, easedReveal);
 
       for (let r = 0; r < rows; r++) {
         const screenYTop = (r + 0.5) / rows;
         const topFeather = smoothstep(0, 0.1, screenYTop);
         if (topFeather <= 0.01) continue;
-
-        const enterVeil = smoothstep(1.12 - easedReveal * 1.45, 0.62 - easedReveal * 0.95, screenYTop);
-        const revealAtten = easedReveal * mixNum(enterVeil, 1, blendEnter);
-        if (revealAtten <= 0.002) continue;
 
         const texY = clamp01((screenYTop - topOffset) / Math.max(0.001, imgHeightVh));
         const waterMask = smoothstep(0.754, 0.778, texY);
@@ -615,7 +609,7 @@ function createCanvas2DBackdrop(canvas: HTMLCanvasElement): BackdropBackend | nu
           const tintedRgb = { r: tinted[0], g: tinted[1], b: tinted[2] };
 
           const centerWeight = smoothstep(0.38, 0.94, Math.abs(nx - 0.5) * 2);
-          const vis = revealAtten * maxVis * mixNum(laneMin, 1, centerWeight) * topFeather;
+          const vis = easedReveal * maxVis * mixNum(laneMin, 1, centerWeight) * topFeather;
 
           const bedRgb = theme.isDark
             ? {
@@ -722,7 +716,7 @@ export function mountAsciiBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
     const vh = Math.max(1, window.innerHeight || cssH);
     const y = Math.max(0, window.scrollY);
     scrollTarget = mapSectionPhase(y);
-    revealTarget = smoothstep(vh * 0.22, vh * 1.18, y);
+    revealTarget = smoothstep(vh * 0.25, vh * 1.05, y);
 
     if (snap || reducedMotion) {
       scrollSmooth = scrollTarget;
